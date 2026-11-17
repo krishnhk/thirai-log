@@ -138,7 +138,7 @@ export function TheatrePicker({
         <View style={styles.hintRow} accessibilityRole="text">
           <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
           <Text style={[styles.hint, { color: colors.textMuted }]}>
-            No theatre like “{typed}” in your list. Add it under Settings → Theatres visited.
+            No theatre like “{typed}” in your list. Add it in Library → Theatres.
           </Text>
         </View>
       ) : null}

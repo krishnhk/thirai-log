@@ -7,7 +7,7 @@ import { pickPosterFromLibrary } from '../lib/posters';
 import { notify } from '../lib/ui';
 
 interface PosterPickerProps {
-  /** Current poster (TMDB URL or a file URI from a previous pick). */
+  /** Current poster (a web link or a file URI from a previous pick). */
   uri?: string;
   title: string;
   /** Stable id used to name the stored file. */

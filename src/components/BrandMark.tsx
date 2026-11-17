@@ -12,30 +12,48 @@ interface BrandMarkProps {
   height?: number;
 }
 
-export function BrandMark({ height = 30 }: BrandMarkProps) {
-  const { colors } = useTheme();
+// Light theme: "thirai" dark navy, "log" a lighter blue. The mark matches "log".
+const LIGHT_THIRAI_DARK = '#1A2A42';
+const LIGHT_LOG_LIGHT = '#6E96CE';
 
-  return (
+export function BrandMark({ height = 30 }: BrandMarkProps) {
+  const { colors, mode } = useTheme();
+  const light = mode === 'light';
+  const markTint = light ? LIGHT_LOG_LIGHT : colors.accent;
+  const wordColor = light ? LIGHT_THIRAI_DARK : colors.text;
+  const logColor = light ? LIGHT_LOG_LIGHT : colors.accent;
+
+  const logo = (
     <View style={styles.row}>
       <Image
         source={MARK}
         style={{ width: height * ASPECT, height }}
         resizeMode="contain"
-        tintColor={colors.accent}
+        tintColor={markTint}
         accessibilityLabel="ThiraiLog"
       />
       <Text
         allowFontScaling={false}
         style={[
           styles.wordmark,
-          { color: colors.text, fontSize: Math.round(height * 0.64), lineHeight: height + 2 },
+          {
+            color: wordColor,
+            fontSize: Math.round(height * 0.64),
+            // Line box equal to the font size, so the text centres on the mark instead of sitting low.
+            lineHeight: Math.round(height * 0.64 * 1.2),
+            // Centre the glyphs inside their line box, so the wordmark lines up with the mark and button.
+            includeFontPadding: false,
+            textAlignVertical: 'center',
+          },
         ]}
       >
         thirai
-        <Text style={{ color: colors.accent }}>log</Text>
+        <Text style={{ color: logColor }}>log</Text>
       </Text>
     </View>
   );
+
+  return logo;
 }
 
 const styles = StyleSheet.create({

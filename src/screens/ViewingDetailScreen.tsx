@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -50,29 +49,8 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
   const reserved = showDone ? 400 : 330;
   const posterWidth = Math.round(Math.min(width * 0.6, (height - insets.top - reserved) / 1.5, 280));
 
-  const goBack = () => {
-    if (router.canGoBack()) router.back();
-    else router.navigate('/diary');
-  };
-
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable
-          onPress={goBack}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={4}
-          style={({ pressed }) => [
-            styles.back,
-            { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Ionicons name="chevron-back" size={20} color={colors.coralInk} />
-        </Pressable>
-      </View>
-
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} />
@@ -86,7 +64,7 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.content, { paddingBottom: 24 }]}
+          contentContainerStyle={[styles.content, { paddingVertical: 16 }]}
         >
           <View
             style={[
@@ -111,6 +89,12 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
               label="Watched on"
               value={longDate(entry.watchedAt)}
             />
+            {place ? (
+              <>
+                <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
+                <DetailRow icon="location" label="Theatre" value={place.name} hint={place.district} />
+              </>
+            ) : null}
             {entry.companion ? (
               <>
                 <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
@@ -119,12 +103,6 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
                   label="Watched"
                   value={COMPANION_LABELS[entry.companion]}
                 />
-              </>
-            ) : null}
-            {place ? (
-              <>
-                <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
-                <DetailRow icon="location" label="Theatre" value={place.name} hint={place.district} />
               </>
             ) : null}
           </View>
@@ -196,7 +174,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#142A45',
+    shadowColor: '#1A2A42',
     shadowOpacity: 0.08,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -213,9 +191,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   content: {
+    // Fills the space and centres the poster and details, so top and bottom gaps are equal.
+    flexGrow: 1,
+    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 8,
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
@@ -246,7 +226,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14,
     paddingVertical: 4,
-    shadowColor: '#142A45',
+    shadowColor: '#1A2A42',
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },

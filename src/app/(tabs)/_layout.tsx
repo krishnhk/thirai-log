@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { TabBar } from '../../navigation/TabBar';
 
-// Declared in the same order as the original tab bar. Routes map to: / , /diary, /log, /watchlist, /statistics.
+// Declared in the same order as the original tab bar. Routes map to: / , /diary, /log, /watchlist, /library.
 export default function TabsLayout() {
   return (
     <Tabs
@@ -17,7 +17,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="diary" options={{ tabBarLabel: 'Diary' }} />
       <Tabs.Screen name="log" options={{ tabBarLabel: 'Log' }} />
       <Tabs.Screen name="watchlist" options={{ tabBarLabel: 'Watchlist' }} />
-      <Tabs.Screen name="statistics" options={{ tabBarLabel: 'Statistics' }} />
+      <Tabs.Screen name="library" options={{ tabBarLabel: 'Library' }} />
     </Tabs>
   );
 }

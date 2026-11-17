@@ -1,7 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationThemeProvider } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useTheme } from '../theme';
+
+// Keep the splash screen up for at least this long, so the logo is seen before the app appears.
+const SPLASH_MIN_MS = 2000;
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function RootNavigator() {
   const { colors, mode } = useTheme();
@@ -28,18 +33,24 @@ function RootNavigator() {
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="viewing/[entryId]" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="movie/[movieId]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="add-movie" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="films" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="theatres" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="statistics" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </NavigationThemeProvider>
   );
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, SPLASH_MIN_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <ThemeProvider>
       <RootNavigator />

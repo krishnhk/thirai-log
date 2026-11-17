@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#142A45',
+    shadowColor: '#1A2A42',
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },

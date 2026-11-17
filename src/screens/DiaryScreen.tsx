@@ -41,18 +41,10 @@ export default function DiaryScreen() {
   const { colors } = useTheme();
   const { library, loading } = useLibrary();
 
-  const currentYear = new Date().getFullYear();
-  const totals = useMemo(
-    () => ({
-      // Different films by name: the same film logged twice counts once.
-      movies: new Set(library.entries.map((entry) => entry.title.trim().toLowerCase())).size,
-      thisYear: new Set(
-        library.entries
-          .filter((entry) => toDate(entry.watchedAt).getFullYear() === currentYear)
-          .map((entry) => entry.title.trim().toLowerCase())
-      ).size,
-    }),
-    [library.entries, currentYear]
+  // Different films by name: the same film logged twice counts once.
+  const uniqueTitles = useMemo(
+    () => new Set(library.entries.map((entry) => entry.title.trim().toLowerCase())).size,
+    [library.entries]
   );
 
   // Every year, newest first: each year holds its months, each month holds its viewings.
@@ -120,14 +112,8 @@ export default function DiaryScreen() {
             >
               <SummaryStat
                 label="Total movies"
-                value={totals.movies}
+                value={uniqueTitles}
                 hint="Unique titles"
-              />
-              <View style={[styles.summaryDivider, { backgroundColor: colors.borderSoft }]} />
-              <SummaryStat
-                label="Movies this year"
-                value={totals.thisYear}
-                hint={`Unique in ${currentYear}`}
               />
             </View>
 
@@ -370,7 +356,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 10,
     overflow: 'hidden',
-    shadowColor: '#142A45',
+    shadowColor: '#1A2A42',
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },

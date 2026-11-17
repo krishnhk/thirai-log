@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
-    shadowColor: '#142A45',
+    shadowColor: '#1A2A42',
     shadowOpacity: 0.18,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },

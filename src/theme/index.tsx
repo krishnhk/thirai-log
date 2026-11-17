@@ -1,13 +1,5 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import { Platform, type TextStyle } from 'react-native';
-import { DATA_FILES, readJson, writeJson } from '../lib/storage';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -64,9 +56,6 @@ export const RADIUS = {
   pill: 999,
 } as const;
 
-/** Height the docked tab bar occupies, excluding the device safe area. */
-export const TAB_BAR_HEIGHT = 76;
-
 /** Editorial serif used for display type and large numbers. */
 export const SERIF = Platform.select({
   ios: 'Georgia',
@@ -98,120 +87,54 @@ export const TYPE = {
 } as const;
 
 const LIGHT: ThemeColors = {
-  background: '#FFF8EF',
-  backgroundAlt: '#F6EFE3',
+  background: '#FAF5EA',
+  backgroundAlt: '#EFE6D5',
   surface: '#FFFFFF',
-  surfaceAlt: '#F3EEE6',
-  border: '#E8DFD0',
-  borderSoft: 'rgba(20,42,69,0.08)',
-  text: '#142A45',
-  textMuted: '#788493',
-  textDim: '#A3ACB8',
-  accent: '#3989CF',
-  accentSoft: 'rgba(57,137,207,0.12)',
+  surfaceAlt: '#F3ECDD',
+  border: '#E6DCC8',
+  borderSoft: 'rgba(26,42,66,0.08)',
+  text: '#1A2A42',
+  textMuted: '#66748B',
+  textDim: '#9AA5B6',
+  accent: '#3B5F94',
+  accentSoft: 'rgba(59,95,148,0.12)',
   onAccent: '#FFFFFF',
-  gold: '#D4A03C',
-  goldSoft: 'rgba(212,160,60,0.20)',
-  coral: '#3989CF',
-  coralSoft: '#E4F1F8',
-  coralInk: '#174B7A',
-  sage: '#3F9A6C',
-  sageSoft: '#E5F2E8',
-  sageInk: '#2B7550',
-  teal: '#2F8A74',
-  blue: '#3989CF',
+  gold: '#7C98C0',
+  goldSoft: 'rgba(124,152,192,0.2)',
+  coral: '#3B5F94',
+  coralSoft: '#DEE6F3',
+  coralInk: '#2B4670',
+  sage: '#3B5F94',
+  sageSoft: '#E4EAF3',
+  sageInk: '#2B4670',
+  teal: '#3B5F94',
+  blue: '#3B5F94',
   rose: '#BC4F68',
-  star: '#D9A21F',
-  overlay: 'rgba(6,20,40,0.58)',
+  star: '#3B5F94',
+  overlay: 'rgba(18,30,50,0.58)',
   nav: '#FFFFFF',
-  navActive: '#174B7A',
+  navActive: '#2B4670',
   navText: '#FFFFFF',
-  navTextMuted: '#42546C',
-  primary: '#174B7A',
+  navTextMuted: '#5A6882',
+  primary: '#3B5F94',
   primaryText: '#FFFFFF',
-};
-
-const DARK: ThemeColors = {
-  background: '#0E1729',
-  backgroundAlt: '#14213A',
-  surface: '#16243D',
-  surfaceAlt: '#1C2D49',
-  border: '#2B3D5C',
-  borderSoft: 'rgba(255,255,255,0.09)',
-  text: '#F8F4EA',
-  textMuted: '#AAB6C8',
-  textDim: '#7F8CA1',
-  accent: '#6CA7E8',
-  accentSoft: 'rgba(108,167,232,0.16)',
-  onAccent: '#071427',
-  gold: '#E9BB60',
-  goldSoft: 'rgba(233,187,96,0.18)',
-  coral: '#7FB3E0',
-  coralSoft: '#173452',
-  coralInk: '#B9DCF8',
-  sage: '#7FC29C',
-  sageSoft: '#18382A',
-  sageInk: '#B4E1C4',
-  teal: '#67C6B5',
-  blue: '#8DBFF6',
-  rose: '#FF8BA3',
-  star: '#F5CC6A',
-  overlay: 'rgba(0,0,0,0.60)',
-  nav: '#0A1B33',
-  navActive: 'rgba(251,247,237,0.12)',
-  navText: '#FBF7ED',
-  navTextMuted: 'rgba(251,247,237,0.55)',
-  primary: '#6CA7E8',
-  primaryText: '#071427',
 };
 
 interface ThemeContextValue {
   mode: ThemeMode;
   colors: ThemeColors;
-  toggle: () => void;
 }
 
+// The app has a single light theme.
 const DEFAULT_CONTEXT: ThemeContextValue = {
   mode: 'light',
   colors: LIGHT,
-  toggle: () => {},
 };
 
 const ThemeContext = createContext<ThemeContextValue>(DEFAULT_CONTEXT);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>('light');
-
-  useEffect(() => {
-    let mounted = true;
-    readJson<string | null>(DATA_FILES.theme, null)
-      .then((stored) => {
-        if (mounted && (stored === 'light' || stored === 'dark')) {
-          setMode(stored);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const toggle = useCallback(() => {
-    setMode((current) => {
-      const next: ThemeMode = current === 'dark' ? 'light' : 'dark';
-      writeJson(DATA_FILES.theme, next).catch(() => {});
-      return next;
-    });
-  }, []);
-
-  const value = useMemo<ThemeContextValue>(
-    () => ({
-      mode,
-      colors: mode === 'dark' ? DARK : LIGHT,
-      toggle,
-    }),
-    [mode, toggle]
-  );
+  const value = useMemo<ThemeContextValue>(() => ({ mode: 'light', colors: LIGHT }), []);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

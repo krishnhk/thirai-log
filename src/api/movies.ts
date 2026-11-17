@@ -1,11 +1,4 @@
 import { DATA_FILES, readJson, updateJson } from '../lib/storage';
-import {
-  getMovieDetails,
-  getMovieBackdrop,
-  getMoviePoster,
-  searchMovies,
-  type TMDBMovie,
-} from './tmdb';
 
 export interface Movie {
   id: string;
@@ -26,28 +19,7 @@ export interface Movie {
   adult?: boolean;
 }
 
-function toMovie(tmdb: TMDBMovie): Movie {
-  return {
-    id: String(tmdb.id),
-    title: tmdb.title,
-    originalTitle: tmdb.original_title,
-    overview: tmdb.overview,
-    posterPath: tmdb.poster_path ? getMoviePoster(tmdb.poster_path) : undefined,
-    backdropPath: tmdb.backdrop_path ? getMovieBackdrop(tmdb.backdrop_path) : undefined,
-    releaseDate: tmdb.release_date || undefined,
-    runtime: tmdb.runtime,
-    genres: tmdb.genres?.map((genre) => genre.name),
-    languages: tmdb.original_language ? [tmdb.original_language] : undefined,
-    voteAverage: tmdb.vote_average,
-    voteCount: tmdb.vote_count,
-    tagline: tmdb.tagline,
-    status: tmdb.status,
-    video: tmdb.video,
-    adult: tmdb.adult,
-  };
-}
-
-// Drops undefined fields so a lighter search result never erases richer cached data.
+// Drops undefined fields so a partial update never erases stored data.
 function definedFields(movie: Movie): Partial<Movie> {
   return Object.fromEntries(
     Object.entries(movie).filter(([, value]) => value !== undefined)
@@ -94,33 +66,4 @@ export async function updateMovie(
 
 export const Movies = {
   getCachedMovies: readCache,
-
-  /** Live TMDB search. Results are NOT cached until the user picks one. */
-  async search(query: string): Promise<Movie[]> {
-    const trimmed = query.trim();
-    if (!trimmed) return [];
-    const response = await searchMovies(trimmed);
-    return response.results.slice(0, 10).map(toMovie);
-  },
-
-  /**
-   * Persists a chosen film. Search results lack genres and runtime, so we fetch
-   * full details once here; the stats screen depends on those fields.
-   */
-  async remember(movie: Movie): Promise<Movie> {
-    let enriched = movie;
-    const isTmdbId = /^\d+$/.test(movie.id);
-    const needsDetails = isTmdbId && (!movie.genres || movie.runtime === undefined);
-
-    if (needsDetails) {
-      try {
-        enriched = { ...movie, ...definedFields(toMovie(await getMovieDetails(Number(movie.id)))) };
-      } catch {
-        // Offline or missing key: keep the lighter record rather than failing the save.
-      }
-    }
-
-    await upsertCache([enriched]);
-    return enriched;
-  },
 };

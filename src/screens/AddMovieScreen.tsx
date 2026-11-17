@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -115,19 +115,6 @@ export default function AddMovieScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={4}
-          style={({ pressed }) => [
-            styles.back,
-            { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Ionicons name="chevron-back" size={20} color={colors.coralInk} />
-        </Pressable>
         <Text style={[styles.title, { color: colors.text }]}>{editId ? 'Edit Film' : 'Add a Film'}</Text>
       </View>
 
@@ -234,7 +221,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#142A45',
+    shadowColor: '#1A2A42',
     shadowOpacity: 0.08,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },

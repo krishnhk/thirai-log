@@ -30,7 +30,7 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files (EXPO_PUBLIC_TMDB_API_KEY lives here)
+# local env files
 .env
 .env*.local
 

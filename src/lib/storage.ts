@@ -14,8 +14,6 @@ export const DATA_FILES = {
   watchlistMovies: 'watchlistMovies',
   annualWatchlists: 'annualWatchlists',
   movies: 'movies',
-  settings: 'settings',
-  theme: 'theme',
   theatres: 'theatres',
   theatreImport: 'theatreImport',
 } as const;
@@ -28,8 +26,6 @@ const LEGACY_KEYS: Record<DataFile, string> = {
   watchlistMovies: '@thirai-log:watchlistMovies',
   annualWatchlists: '@thirai-log:annualWatchlists',
   movies: '@thirai-log:movies',
-  settings: '@thirai-log:userSettings',
-  theme: '@thirai-log:theme',
   theatres: '@thirai-log:theatres',
   theatreImport: '@thirai-log:theatreImport',
 };

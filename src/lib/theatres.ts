@@ -55,7 +55,7 @@ export function parseTheatres(raw: unknown): Theatre[] {
   return raw.map(normalizeTheatre).filter((item): item is Theatre => item !== null);
 }
 
-export async function listTheatres(): Promise<Theatre[]> {
+async function listTheatres(): Promise<Theatre[]> {
   return parseTheatres(await readJson<unknown>(DATA_FILES.theatres, []));
 }
 

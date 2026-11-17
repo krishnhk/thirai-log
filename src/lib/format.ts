@@ -40,22 +40,19 @@ export function formatDate(value: string | Date): string {
   return `${date.getDate()} ${MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`;
 }
 
-export function formatShortDate(value: string | Date): string {
-  const date = toDate(value);
-  return `${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`;
-}
-
-export function formatMonthYear(value: string | Date): string {
-  const date = toDate(value);
-  return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
-}
-
 export function monthShort(index: number): string {
   return MONTHS_SHORT[((index % 12) + 12) % 12];
 }
 
-export function monthInitial(index: number): string {
-  return MONTH_NAMES[((index % 12) + 12) % 12].slice(0, 1);
+/**
+ * Local calendar date (YYYY-MM-DD) of a stored date. It reads local parts, not UTC, so a viewing
+ * saved on Jan 10 never reopens as Jan 9 (toISOString() converts to UTC and can shift the day).
+ */
+export function toInputDate(value: string | Date): string {
+  const date = toDate(value);
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 export function todayInputValue(): string {
@@ -95,11 +92,6 @@ export function formatInputDate(value: string, style: DateStyle = 'medium'): str
     return `${`${day}`.padStart(2, '0')}/${`${month + 1}`.padStart(2, '0')}/${year}`;
   }
   return `${day} ${style === 'long' ? MONTH_NAMES[month] : MONTHS_SHORT[month]} ${year}`;
-}
-
-export function formatRating(rating?: number): string {
-  if (rating === undefined || rating === null) return '—';
-  return rating.toFixed(1);
 }
 
 export function yearOf(value: string | Date): number {

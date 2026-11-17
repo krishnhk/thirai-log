@@ -40,19 +40,6 @@ export default function FilmsScreen() {
         }}
       >
         <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            hitSlop={4}
-            style={({ pressed }) => [
-              styles.back,
-              { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.coralInk} />
-          </Pressable>
           <Text style={[styles.title, { color: colors.text }]}>Films</Text>
         </View>
 
@@ -152,7 +139,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#142A45',
+    shadowColor: '#1A2A42',
     shadowOpacity: 0.08,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -197,7 +184,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 6,
-    shadowColor: '#142A45',
+    shadowColor: '#1A2A42',
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },

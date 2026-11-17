@@ -6,7 +6,7 @@ function posterDir(): Directory {
   return new Directory(Paths.document, 'posters');
 }
 
-/** True for posters we stored ourselves (not TMDB URLs). */
+/** True for posters we stored ourselves (not web links). */
 export function isLocalPoster(uri?: string): boolean {
   try {
     return Boolean(uri && uri.startsWith(posterDir().uri));
@@ -38,16 +38,5 @@ export async function pickPosterFromLibrary(movieId: string): Promise<string | n
   } catch {
     // Where the file system can't store files (web), use the picked image directly.
     return sourceUri;
-  }
-}
-
-/** Deletes a poster file we previously stored. Remote URLs are left alone. */
-export function removeLocalPoster(uri?: string): void {
-  if (!isLocalPoster(uri)) return;
-  try {
-    const file = new File(uri as string);
-    if (file.exists) file.delete();
-  } catch {
-    // A missing file is fine; nothing else references it.
   }
 }

@@ -4,7 +4,7 @@ import { DATA_FILES, readJson, updateJson } from './storage';
 import { parseTheatres, type Theatre } from './theatres';
 
 // Kept under the same names so existing call sites keep working.
-export const STORAGE_KEYS = {
+const STORAGE_KEYS = {
   viewingEntries: DATA_FILES.viewingEntries,
   watchlistMovies: DATA_FILES.watchlistMovies,
   annualWatchlists: DATA_FILES.annualWatchlists,
@@ -143,18 +143,6 @@ export function resolvePoster(library: Library, movieId?: string, title?: string
   return undefined;
 }
 
-export function findMovie(library: Library, movieId?: string, title?: string): Movie | undefined {
-  if (movieId) {
-    const byId = library.movies.find((movie) => movie.id === movieId);
-    if (byId) return byId;
-  }
-  if (title) {
-    const lower = title.toLowerCase();
-    return library.movies.find((movie) => movie.title.toLowerCase() === lower);
-  }
-  return undefined;
-}
-
 /** Inserts or updates a viewing entry by id. */
 export async function saveViewingEntry(entry: ViewingEntry): Promise<void> {
   await updateJson<any[]>(STORAGE_KEYS.viewingEntries, [], (current) => {
@@ -173,11 +161,6 @@ export async function deleteViewingEntry(id: string): Promise<void> {
   await updateJson<any[]>(STORAGE_KEYS.viewingEntries, [], (current) =>
     (Array.isArray(current) ? current : []).filter((item) => item?.id !== id)
   );
-}
-
-export async function readAnnualLists(): Promise<AnnualList[]> {
-  const raw = await readJson<any[]>(STORAGE_KEYS.annualWatchlists, []);
-  return Array.isArray(raw) ? raw.map(normalizeAnnual) : [];
 }
 
 /**

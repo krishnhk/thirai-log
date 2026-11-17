@@ -42,7 +42,8 @@ export function Poster({
   const height = Math.round(width * 1.5);
 
   const tint = useMemo(() => {
-    const palette = [colors.accent, colors.blue, colors.teal, colors.gold, colors.rose];
+    // Gray and beige only: the placeholder tint follows the app palette.
+    const palette = [colors.accent, colors.textMuted, colors.textDim, colors.gold];
     return palette[hashText(title) % palette.length];
   }, [title, colors]);
 

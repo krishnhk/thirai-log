@@ -28,11 +28,10 @@ import {
   formatInputDate,
   parseInputDate,
   todayInputValue,
-  toDate,
+  toInputDate,
   yearOf,
   type DateStyle,
 } from '../lib/format';
-import { DATA_FILES, readJson } from '../lib/storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { confirmAction, notify } from '../lib/ui';
 import { AppHeader } from '../components/AppHeader';
@@ -74,7 +73,8 @@ export default function LogScreen() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [dateStyle, setDateStyle] = useState<DateStyle>('medium');
+  // Fixed date style, for example 17 Nov 2026.
+  const dateStyle: DateStyle = 'medium';
 
   const searchable = useMemo(() => searchableFilms(library), [library]);
   const { results } = useMovieSearch(query, searchable);
@@ -87,6 +87,12 @@ export default function LogScreen() {
         setSelected(null);
         setQuery('');
         setEditingId(null);
+        // A fresh Log opens with an empty form, today's date and no answer chosen yet.
+        setTheatre('');
+        setTheatreId(undefined);
+        setCompanion(undefined);
+        setCompanionError(false);
+        setDateText(todayInputValue());
       }
     }, [editEntryId])
   );
@@ -99,7 +105,7 @@ export default function LogScreen() {
       posterPath: resolvePoster(library, entry.movieId, entry.title),
     });
     setQuery(entry.title);
-    setDateText(toDate(entry.watchedAt).toISOString().slice(0, 10));
+    setDateText(toInputDate(entry.watchedAt));
     setTheatre(entry.theatre ?? '');
     setTheatreId(entry.theatreId);
     setCompanion(entry.companion);
@@ -107,24 +113,6 @@ export default function LogScreen() {
     setUnansweredOld(!entry.companion);
     setBanner(null);
   }
-
-  // Date style chosen in Settings, used for the date shown in the field.
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      readJson<{ dateFormat?: string } | null>(DATA_FILES.settings, null)
-        .then((saved) => {
-          const style = saved?.dateFormat;
-          if (active && (style === 'short' || style === 'medium' || style === 'long')) {
-            setDateStyle(style);
-          }
-        })
-        .catch(() => {});
-      return () => {
-        active = false;
-      };
-    }, [])
-  );
 
   // Pre-fill the form when arriving from Diary or Statistics. Only once per entry,
   // so a background library refresh cannot overwrite what the user is typing.
@@ -286,19 +274,6 @@ export default function LogScreen() {
             { paddingTop: insets.top + 12, backgroundColor: colors.background },
           ]}
         >
-          <Pressable
-            onPress={handleCancel}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            hitSlop={4}
-            style={({ pressed }) => [
-              styles.back,
-              { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.coralInk} />
-          </Pressable>
           <View style={styles.editHeaderText}>
             <Text style={[styles.title, { color: colors.text }]}>Edit viewing</Text>
             <Text style={[styles.subtitle, { color: colors.textMuted }]}>
@@ -621,7 +596,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#142A45',
+    shadowColor: '#1A2A42',
     shadowOpacity: 0.08,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },

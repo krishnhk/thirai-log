@@ -13,7 +13,7 @@ const ICONS: Record<string, { active: IconName; inactive: IconName; label: strin
   index: { active: 'home', inactive: 'home-outline', label: 'Home' },
   diary: { active: 'book', inactive: 'book-outline', label: 'Diary' },
   watchlist: { active: 'bookmark', inactive: 'bookmark-outline', label: 'Watchlist' },
-  statistics: { active: 'stats-chart', inactive: 'stats-chart-outline', label: 'Statistics' },
+  library: { active: 'albums', inactive: 'albums-outline', label: 'Library' },
 };
 
 // Active-tab pill. Drawn as one sliding View, so every tab shows the identical capsule shape.
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: BAR_PADDING,
     overflow: 'visible',
-    shadowColor: '#142A45',
+    shadowColor: '#1A2A42',
     shadowOpacity: 0.14,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3989CF',
+    shadowColor: '#3B5F94',
     shadowOpacity: 0.4,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },

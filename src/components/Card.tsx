@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { RADIUS, SPACE, useTheme } from '../theme';
 
 interface CardProps {
@@ -14,21 +15,21 @@ interface CardProps {
 export function Card({ children, style, padded = true, raised }: CardProps) {
   const { colors, mode } = useTheme();
   return (
-    <View
+    <LinearGradient
+      colors={raised ? [colors.surfaceAlt, colors.surfaceAlt] : [colors.surface, '#FBF8F0']}
       style={[
         styles.card,
         padded && styles.padded,
         {
-          backgroundColor: raised ? colors.surfaceAlt : colors.surface,
           borderColor: colors.borderSoft,
-          shadowColor: mode === 'light' ? '#12396A' : '#000000',
-          shadowOpacity: mode === 'light' ? 0.06 : 0.2,
+          shadowColor: mode === 'light' ? '#1A2A42' : '#000000',
+          shadowOpacity: mode === 'light' ? 0.09 : 0.2,
         },
         style,
       ]}
     >
       {children}
-    </View>
+    </LinearGradient>
   );
 }
 

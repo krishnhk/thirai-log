@@ -90,6 +90,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: RADIUS.pill,
     borderWidth: 1,
+    shadowColor: '#3B5F94',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
   },
   fullWidth: {
     width: '100%',

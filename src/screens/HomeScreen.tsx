@@ -129,7 +129,7 @@ export default function HomeScreen() {
                 {
                   backgroundColor: colors.surface,
                   borderColor: colors.borderSoft,
-                  shadowColor: mode === 'light' ? '#1A3152' : '#000000',
+                  shadowColor: mode === 'light' ? '#1A2A42' : '#000000',
                 },
               ]}
             >
@@ -231,7 +231,7 @@ export default function HomeScreen() {
                 {
                   backgroundColor: colors.surface,
                   borderColor: colors.borderSoft,
-                  shadowColor: mode === 'light' ? '#1A3152' : '#000000',
+                  shadowColor: mode === 'light' ? '#1A2A42' : '#000000',
                 },
               ]}
             >
