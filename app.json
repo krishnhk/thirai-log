@@ -22,7 +22,7 @@
         {
           "image": "./assets/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#174B7A"
+          "backgroundColor": "#2B4670"
         }
       ],
       "expo-sharing",
@@ -52,7 +52,7 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png",
-        "backgroundColor": "#FFF8EF"
+        "backgroundColor": "#FAF5EA"
       },
       "package": "com.krishnhk.thirailog"
     },
