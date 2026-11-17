@@ -8,7 +8,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SPACE, useTheme } from '../theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { RADIUS, SPACE, useTheme } from '../theme';
 import { Poster } from './Poster';
 import { RatingStars } from './RatingStars';
 import type { EntryStatus } from '../lib/library';
@@ -43,7 +44,7 @@ export function PosterCard({
       onPress={onPress}
       style={[styles.container, { width }, style]}
     >
-      <Poster uri={posterPath} title={title} width={width} radius={14}>
+      <Poster uri={posterPath} title={title} width={width} radius={RADIUS.lg}>
         {typeof rating === 'number' && rating > 0 ? (
           <View style={[styles.ratingBadge, { backgroundColor: colors.overlay }]}>
             <Ionicons name="star" size={10} color={colors.star} />
@@ -55,7 +56,11 @@ export function PosterCard({
             <StatusPill status={status} small />
           </View>
         ) : null}
-        <View style={styles.posterShade} pointerEvents="none" />
+        <LinearGradient
+          colors={['transparent', 'rgba(6,20,40,0.55)']}
+          style={styles.posterShade}
+          pointerEvents="none"
+        />
       </Poster>
       <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
         {title}
@@ -104,13 +109,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: '34%',
-    backgroundColor: 'transparent',
+    height: '38%',
   },
   title: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '700',
-    marginTop: SPACE.sm,
+    marginTop: 6,
     lineHeight: 16,
   },
   meta: {

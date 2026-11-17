@@ -8,7 +8,11 @@ interface MonthChartProps {
   selectedIndex?: number;
   onSelect?: (index: number) => void;
   accent?: string;
+  /** Colour used for the selected column, defaults to the accent. */
+  selectedColor?: string;
   showCounts?: boolean;
+  /** Lower bars and tighter labels for dashboard cards. */
+  compact?: boolean;
 }
 
 export function MonthChart({
@@ -17,43 +21,68 @@ export function MonthChart({
   selectedIndex,
   onSelect,
   accent,
+  selectedColor,
   showCounts = true,
+  compact,
 }: MonthChartProps) {
   const { colors } = useTheme();
   const tint = accent ?? colors.accent;
+  const highlight = selectedColor ?? tint;
   const max = useMemo(() => Math.max(1, ...counts), [counts]);
+  const maxBarHeight = compact ? 30 : 76;
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <View style={styles.chart}>
+        {compact ? (
+          <View
+            pointerEvents="none"
+            style={[styles.baseline, { backgroundColor: colors.border }]}
+          />
+        ) : null}
         {counts.map((count, index) => {
           const isSelected = selectedIndex === index;
           const active = count > 0;
-          const height = count > 0 ? Math.max(10, (count / max) * 72) : 4;
+          const height = count > 0 ? Math.max(compact ? 9 : 12, (count / max) * maxBarHeight) : 0;
           const content = (
             <View style={styles.column}>
-              {showCounts && count > 0 ? (
-                <Text style={[styles.count, { color: colors.textMuted }]}>{count}</Text>
+              {showCounts && count > 0 && (isSelected || !compact) ? (
+                <Text
+                  style={[
+                    styles.count,
+                    compact && styles.countCompact,
+                    {
+                      color: isSelected ? colors.text : colors.textMuted,
+                      fontWeight: isSelected ? '800' : '600',
+                    },
+                  ]}
+                >
+                  {count}
+                </Text>
               ) : (
-                <View style={styles.countSpacer} />
+                <View style={[styles.countSpacer, compact && styles.countSpacerCompact]} />
               )}
               <View
                 style={[
                   styles.bar,
+                  !active && styles.barEmpty,
                   {
                     height,
-                    backgroundColor: active ? tint : colors.surfaceAlt,
-                    opacity: active ? (selectedIndex === undefined || isSelected ? 1 : 0.72) : 1,
-                    borderWidth: isSelected ? 1.5 : 0,
-                    borderColor: colors.textMuted,
+                    backgroundColor: active
+                      ? isSelected
+                        ? highlight
+                        : tint
+                      : 'transparent',
+                    opacity: active ? (isSelected ? 1 : 0.38) : 1,
                   },
                 ]}
               />
               <Text
                 style={[
                   styles.label,
+                  compact && styles.labelCompact,
                   {
-                    color: isSelected ? tint : active ? colors.textMuted : colors.textDim,
+                    color: isSelected ? colors.text : colors.textMuted,
                     fontWeight: isSelected ? '800' : '600',
                   },
                 ]}
@@ -91,10 +120,20 @@ const styles = StyleSheet.create({
   wrap: {
     marginTop: SPACE.sm,
   },
+  wrapCompact: {
+    marginTop: 6,
+  },
+  baseline: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 19,
+    height: StyleSheet.hairlineWidth * 2,
+  },
   chart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 3,
+    gap: 2,
   },
   pressable: {
     flex: 1,
@@ -106,23 +145,42 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   count: {
-    fontSize: 9,
+    fontSize: 9.5,
     fontWeight: '700',
-    marginBottom: 3,
+    marginBottom: 4,
     height: 12,
+    fontVariant: ['tabular-nums'],
   },
   countSpacer: {
     height: 12,
-    marginBottom: 3,
+    marginBottom: 4,
+  },
+  countCompact: {
+    fontSize: 9,
+    height: 10,
+    marginBottom: 4,
+  },
+  countSpacerCompact: {
+    height: 10,
+    marginBottom: 4,
   },
   bar: {
-    width: '72%',
-    borderRadius: 5,
+    width: '68%',
+    borderRadius: 6,
     minHeight: 4,
   },
+  barEmpty: {
+    minHeight: 0,
+  },
   label: {
-    fontSize: 9,
+    fontSize: 9.5,
+    marginTop: 7,
+    letterSpacing: 0.1,
+  },
+  labelCompact: {
+    fontSize: 10.5,
+    lineHeight: 13,
     marginTop: 6,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
 });

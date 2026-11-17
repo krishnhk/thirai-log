@@ -7,11 +7,13 @@ interface ChipProps {
   active?: boolean;
   onPress?: () => void;
   tint?: string;
+  /** Reduced height and padding for dense filter rows. */
+  compact?: boolean;
 }
 
-export function Chip({ label, active, onPress, tint }: ChipProps) {
+export function Chip({ label, active, onPress, tint, compact }: ChipProps) {
   const { colors } = useTheme();
-  const accent = tint ?? colors.accent;
+  const accent = tint ?? colors.primary;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -19,8 +21,9 @@ export function Chip({ label, active, onPress, tint }: ChipProps) {
       disabled={!onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: Boolean(active) }}
-      style={[
+      style={[ 
         styles.chip,
+        compact && styles.chipCompact,
         {
           backgroundColor: active ? accent : colors.surface,
           borderColor: active ? accent : colors.border,
@@ -30,7 +33,8 @@ export function Chip({ label, active, onPress, tint }: ChipProps) {
       <Text
         style={[
           styles.label,
-          { color: active ? colors.onAccent : colors.textMuted },
+          compact && styles.labelCompact,
+          { color: active ? colors.primaryText : colors.textMuted },
         ]}
       >
         {label}
@@ -41,14 +45,22 @@ export function Chip({ label, active, onPress, tint }: ChipProps) {
 
 const styles = StyleSheet.create({
   chip: {
-    minHeight: 36,
+    minHeight: 32,
     justifyContent: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  chipCompact: {
+    minHeight: 26,
+    paddingHorizontal: 10,
   },
   label: {
     ...TYPE.small,
     fontWeight: '700',
+  },
+  labelCompact: {
+    fontSize: 11.5,
+    lineHeight: 15,
   },
 });

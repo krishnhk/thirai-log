@@ -32,7 +32,7 @@ export function StatusPill({ status, small }: StatusPillProps) {
       style={[
         styles.pill,
         small && styles.pillSmall,
-        { backgroundColor: `${tint}22`, borderColor: `${tint}55` },
+        { backgroundColor: `${tint}1F`, borderColor: `${tint}4D` },
       ]}
     >
       <View style={[styles.dot, { backgroundColor: tint }]} />

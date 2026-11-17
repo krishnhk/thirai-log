@@ -8,22 +8,43 @@ interface ScreenHeaderProps {
   eyebrow?: string;
   subtitle?: string;
   right?: React.ReactNode;
+  /** Tighter header for dense screens such as the diary. */
+  compact?: boolean;
 }
 
-export function ScreenHeader({ title, eyebrow, subtitle, right }: ScreenHeaderProps) {
+export function ScreenHeader({ title, eyebrow, subtitle, right, compact }: ScreenHeaderProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + SPACE.lg }]}>
+    <View
+      style={[
+        styles.container,
+        compact && styles.containerCompact,
+        { paddingTop: insets.top + (compact ? SPACE.sm : SPACE.md) },
+      ]}
+    >
       <View style={styles.row}>
         <View style={styles.textWrap}>
           {eyebrow ? (
-            <Text style={[styles.eyebrow, { color: colors.accent }]}>{eyebrow}</Text>
+            <View style={styles.eyebrowRow}>
+              <View style={[styles.tick, { backgroundColor: colors.gold }]} />
+              <Text
+                style={[styles.eyebrow, compact && styles.eyebrowCompact, { color: colors.accent }]}
+              >
+                {eyebrow}
+              </Text>
+            </View>
           ) : null}
-          <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+          <Text style={[styles.title, compact && styles.titleCompact, { color: colors.text }]}>
+            {title}
+          </Text>
           {subtitle ? (
-            <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
+            <Text
+              style={[styles.subtitle, compact && styles.subtitleCompact, { color: colors.textMuted }]}
+            >
+              {subtitle}
+            </Text>
           ) : null}
         </View>
         {right ? <View style={styles.right}>{right}</View> : null}
@@ -34,8 +55,12 @@ export function ScreenHeader({ title, eyebrow, subtitle, right }: ScreenHeaderPr
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: SPACE.xl,
-    paddingBottom: SPACE.lg,
+    paddingHorizontal: SPACE.lg,
+    paddingBottom: SPACE.md,
+  },
+  containerCompact: {
+    paddingHorizontal: SPACE.lg,
+    paddingBottom: SPACE.sm,
   },
   row: {
     flexDirection: 'row',
@@ -46,19 +71,43 @@ const styles = StyleSheet.create({
   textWrap: {
     flex: 1,
   },
+  eyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  tick: {
+    width: 14,
+    height: 2,
+    borderRadius: 1,
+  },
   eyebrow: {
     ...TYPE.eyebrow,
-    marginBottom: 6,
+  },
+  eyebrowCompact: {
+    fontSize: 9,
+    letterSpacing: 1.3,
   },
   title: {
     ...TYPE.title,
-    fontSize: 30,
-    lineHeight: 36,
-    letterSpacing: -0.6,
+    fontSize: 26,
+    lineHeight: 31,
+    letterSpacing: -0.5,
+  },
+  titleCompact: {
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.4,
   },
   subtitle: {
     ...TYPE.small,
-    marginTop: 6,
+    marginTop: 4,
+  },
+  subtitleCompact: {
+    fontSize: 11.5,
+    lineHeight: 15,
+    marginTop: 2,
   },
   right: {
     paddingBottom: 4,

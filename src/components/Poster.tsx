@@ -8,6 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { RADIUS, useTheme } from '../theme';
 
 interface PosterProps {
@@ -53,6 +54,7 @@ export function Poster({
   }, [title]);
 
   const showImage = Boolean(uri) && !failed;
+  const discSize = Math.max(22, Math.min(44, Math.round(width * 0.55)));
 
   return (
     <View
@@ -76,14 +78,40 @@ export function Poster({
           onError={() => setFailed(true)}
         />
       ) : (
-        <View style={styles.fallback}>
-          <View style={[styles.iconDisc, { backgroundColor: `${tint}26` }]}>
-            <Ionicons name="film-outline" size={Math.max(16, width * 0.2)} color={tint} />
+        <LinearGradient
+          colors={[`${tint}38`, `${tint}0F`]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={styles.fallback}
+        >
+          <View
+            pointerEvents="none"
+            style={[
+              styles.frame,
+              { borderColor: `${colors.gold}66`, borderRadius: Math.max(radius - 4, 4) },
+            ]}
+          />
+          <View
+            style={[
+              styles.iconDisc,
+              {
+                width: discSize,
+                height: discSize,
+                borderRadius: discSize / 2,
+                backgroundColor: `${tint}26`,
+              },
+            ]}
+          >
+            <Ionicons
+              name="film-outline"
+              size={Math.max(12, Math.round(discSize * 0.42))}
+              color={tint}
+            />
           </View>
           {width >= 76 ? (
             <Text style={[styles.initials, { color: colors.textMuted }]}>{initials}</Text>
           ) : null}
-        </View>
+        </LinearGradient>
       )}
       {children}
     </View>
@@ -105,10 +133,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  frame: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    right: 4,
+    bottom: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   iconDisc: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

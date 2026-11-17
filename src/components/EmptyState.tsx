@@ -33,7 +33,7 @@ export function EmptyState({
       ]}
     >
       <View style={[styles.iconWrap, { backgroundColor: colors.accentSoft }]}>
-        <Ionicons name={icon} size={compact ? 20 : 26} color={colors.accent} />
+        <Ionicons name={icon} size={compact ? 18 : 22} color={colors.accent} />
       </View>
       <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
       {message ? (
@@ -48,8 +48,8 @@ export function EmptyState({
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: SPACE.xxl,
-    paddingHorizontal: SPACE.xl,
+    paddingVertical: SPACE.xl,
+    paddingHorizontal: SPACE.lg,
     borderRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
@@ -59,9 +59,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.lg,
   },
   iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACE.md,
@@ -74,11 +74,11 @@ const styles = StyleSheet.create({
     ...TYPE.small,
     textAlign: 'center',
     marginTop: SPACE.sm,
-    maxWidth: 300,
+    maxWidth: 280,
   },
   action: {
-    marginTop: SPACE.lg,
-    minHeight: 44,
+    marginTop: SPACE.md,
+    minHeight: 42,
     paddingHorizontal: SPACE.xl,
   },
 });
