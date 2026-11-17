@@ -2,12 +2,16 @@
   "expo": {
     "name": "ThiraiLog",
     "slug": "thirai-log",
+    "platforms": [
+      "android",
+      "web"
+    ],
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "assetBundlePatterns": [
-      "**/*"
+      "assets/**/*"
     ],
     "plugins": [
       "expo-router",
@@ -21,13 +25,27 @@
           "backgroundColor": "#0A0A0F"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": [
+              "arm64-v8a"
+            ],
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "useLegacyPackaging": true,
+            "enableBundleCompression": true
+          }
+        }
+      ]
     ],
     "web": {
       "bundler": "metro",
       "favicon": "./assets/favicon.png"
     },
-    "owner": "harikrishnan-naveen",
+    "owner": "krishnhk",
     "scheme": "thirailog",
     "android": {
       "adaptiveIcon": {
@@ -35,6 +53,12 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png",
         "backgroundColor": "#FF5A36"
+      },
+      "package": "com.krishnhk.thirailog"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6d48b042-c8bd-4ccb-886a-13b96648def9"
       }
     }
   }
