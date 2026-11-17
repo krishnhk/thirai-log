@@ -3,6 +3,6 @@ import { useLocalSearchParams } from 'expo-router';
 import MovieDetailsScreen from '../../screens/MovieDetailsScreen';
 
 export default function MovieRoute() {
-  const { movieId } = useLocalSearchParams<{ movieId: string }>();
-  return <MovieDetailsScreen movieId={String(movieId)} />;
+  const { movieId, entryId } = useLocalSearchParams<{ movieId: string; entryId?: string }>();
+  return <MovieDetailsScreen movieId={String(movieId)} entryId={entryId ? String(entryId) : undefined} />;
 }

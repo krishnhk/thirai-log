@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RADIUS, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { resolvePoster } from '../lib/library';
+import { theatreDisplay } from '../lib/theatres';
+import { COMPANION_LABELS } from '../lib/stats';
 import { MONTH_NAMES, toDate } from '../lib/format';
 import { Poster } from '../components/Poster';
 import { ActionButton } from '../components/ActionButton';
@@ -42,7 +44,7 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
   const { library, loading } = useLibrary();
 
   const entry = library.entries.find((item) => item.id === entryId);
-  const theatre = entry?.theatre?.trim();
+  const place = entry ? theatreDisplay(entry, library.theatres) : null;
 
   // Large poster that still leaves room for the text on short phones.
   const reserved = showDone ? 400 : 330;
@@ -109,10 +111,20 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
               label="Watched on"
               value={longDate(entry.watchedAt)}
             />
-            {theatre ? (
+            {entry.companion ? (
               <>
                 <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
-                <DetailRow icon="location" label="Theatre" value={theatre} />
+                <DetailRow
+                  icon={entry.companion === 'alone' ? 'person' : 'people'}
+                  label="Watched"
+                  value={COMPANION_LABELS[entry.companion]}
+                />
+              </>
+            ) : null}
+            {place ? (
+              <>
+                <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
+                <DetailRow icon="location" label="Theatre" value={place.name} hint={place.district} />
               </>
             ) : null}
           </View>
@@ -146,10 +158,13 @@ function DetailRow({
   icon,
   label,
   value,
+  hint,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   value: string;
+  /** Smaller line under the value, such as the district. */
+  hint?: string;
 }) {
   const { colors } = useTheme();
   return (
@@ -160,6 +175,7 @@ function DetailRow({
       <View style={styles.rowText}>
         <Text style={[styles.rowLabel, { color: colors.textMuted }]}>{label}</Text>
         <Text style={[styles.rowValue, { color: colors.text }]}>{value}</Text>
+        {hint ? <Text style={[styles.rowHint, { color: colors.textMuted }]}>{hint}</Text> : null}
       </View>
     </View>
   );
@@ -269,6 +285,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  rowHint: {
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: '500',
+    marginTop: 1,
   },
   divider: {
     height: StyleSheet.hairlineWidth * 2,

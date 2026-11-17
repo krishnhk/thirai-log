@@ -2,15 +2,19 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../theme';
 import { BrandMark } from './BrandMark';
 import { HeaderIconButton } from './HeaderIconButton';
 
 /** Logo on the left, settings button on the right. Shared by the tab screens. */
 export function AppHeader() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   return (
-    <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+    <View
+      style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: colors.background }]}
+    >
       <BrandMark height={32} />
       <View style={styles.actions}>
         <HeaderIconButton

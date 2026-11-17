@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,75 +9,84 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { RADIUS, SERIF, SPACE, TYPE, useTheme } from '../theme';
+import { SERIF, SPACE, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
-import { resolvePoster, type ViewingEntry } from '../lib/library';
-import { formatMonthYear, formatShortDate, toDate } from '../lib/format';
+import type { ViewingEntry } from '../lib/library';
+import { MONTH_NAMES, toDate } from '../lib/format';
+import { theatreDisplay } from '../lib/theatres';
+import { COMPANION_LABELS } from '../lib/stats';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
-import { Poster } from '../components/Poster';
 
-interface DiaryGroup {
+interface MonthGroup {
   key: string;
-  label: string;
+  /** 0-based month. */
+  month: number;
   entries: ViewingEntry[];
 }
 
-const ALL_YEARS = 'all';
+interface YearGroup {
+  year: number;
+  count: number;
+  months: MonthGroup[];
+}
 
+const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+/**
+ * The diary: every viewing, newest first. Each year is a heading, each month is one card, and
+ * each viewing is a row in that card with its day on the left.
+ */
 export default function DiaryScreen() {
   const { colors } = useTheme();
   const { library, loading } = useLibrary();
-  const [yearFilter, setYearFilter] = useState<string>(ALL_YEARS);
-
-  const years = useMemo(() => {
-    const set = new Set<number>(library.entries.map((entry) => toDate(entry.watchedAt).getFullYear()));
-    return Array.from(set).sort((a, b) => b - a);
-  }, [library.entries]);
 
   const currentYear = new Date().getFullYear();
   const totals = useMemo(
     () => ({
-      all: library.entries.length,
-      thisYear: library.entries.filter(
-        (entry) => toDate(entry.watchedAt).getFullYear() === currentYear
-      ).length,
+      // Different films by name: the same film logged twice counts once.
+      movies: new Set(library.entries.map((entry) => entry.title.trim().toLowerCase())).size,
+      thisYear: new Set(
+        library.entries
+          .filter((entry) => toDate(entry.watchedAt).getFullYear() === currentYear)
+          .map((entry) => entry.title.trim().toLowerCase())
+      ).size,
     }),
     [library.entries, currentYear]
   );
 
-  const { groups, shown } = useMemo(() => {
-    const filtered =
-      yearFilter === ALL_YEARS
-        ? library.entries
-        : library.entries.filter((entry) => String(toDate(entry.watchedAt).getFullYear()) === yearFilter);
-
-    const sorted = [...filtered].sort(
+  // Every year, newest first: each year holds its months, each month holds its viewings.
+  const yearGroups = useMemo(() => {
+    const sorted = [...library.entries].sort(
       (a, b) => toDate(b.watchedAt).getTime() - toDate(a.watchedAt).getTime()
     );
-
-    const map = new Map<string, DiaryGroup>();
+    const years: YearGroup[] = [];
     sorted.forEach((entry) => {
       const date = toDate(entry.watchedAt);
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
-      if (!map.has(key)) {
-        map.set(key, { key, label: formatMonthYear(entry.watchedAt), entries: [] });
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      let yearGroup = years[years.length - 1];
+      if (!yearGroup || yearGroup.year !== year) {
+        yearGroup = { year, count: 0, months: [] };
+        years.push(yearGroup);
       }
-      map.get(key)?.entries.push(entry);
+      yearGroup.count += 1;
+      let monthGroup = yearGroup.months[yearGroup.months.length - 1];
+      if (!monthGroup || monthGroup.month !== month) {
+        monthGroup = { key: `${year}-${month}`, month, entries: [] };
+        yearGroup.months.push(monthGroup);
+      }
+      monthGroup.entries.push(entry);
     });
-
-    return { groups: Array.from(map.values()), shown: sorted.length };
-  }, [library.entries, yearFilter]);
+    return years;
+  }, [library.entries]);
 
   const hasEntries = library.entries.length > 0;
 
-  const yearOptions: { key: string; label: string }[] = [
-    ...years.map((year) => ({ key: String(year), label: String(year) })),
-    { key: ALL_YEARS, label: 'All Years' },
-  ];
-
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <AppHeader />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -88,8 +97,6 @@ export default function DiaryScreen() {
           flexGrow: 1,
         }}
       >
-        <AppHeader />
-
         {loading ? (
           <View style={styles.loading}>
             <ActivityIndicator color={colors.accent} />
@@ -104,157 +111,152 @@ export default function DiaryScreen() {
           </View>
         ) : (
           <>
-            <View style={styles.summaryRow}>
-              <SummaryCard
-                tone="blue"
-                icon="film"
-                label="Total Entries"
-                value={totals.all}
-                hint="Movies logged"
-              />
-              <SummaryCard
-                tone="mint"
-                icon="calendar"
-                label="This Year"
-                value={totals.thisYear}
-                hint={`Entries in ${currentYear}`}
-              />
-            </View>
-
+            {/* One summary card, two equal halves. */}
             <View
               style={[
-                styles.yearBar,
+                styles.summary,
                 { backgroundColor: colors.surface, borderColor: colors.borderSoft },
               ]}
             >
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.yearRow}
-              >
-                {yearOptions.map((option, index) => {
-                  const active = yearFilter === option.key;
-                  const next = yearOptions[index + 1];
-                  const showDivider = !active && next && yearFilter !== next.key;
-                  return (
-                    <Pressable
-                      key={option.key}
-                      onPress={() => setYearFilter(option.key)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      style={[
-                        styles.yearItem,
-                        active && { backgroundColor: colors.primary },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.yearLabel,
-                          { color: active ? colors.primaryText : colors.text },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {option.label}
-                      </Text>
-                      {showDivider ? (
-                        <View style={[styles.yearDivider, { backgroundColor: colors.border }]} />
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <SummaryStat
+                label="Total movies"
+                value={totals.movies}
+                hint="Unique titles"
+              />
+              <View style={[styles.summaryDivider, { backgroundColor: colors.borderSoft }]} />
+              <SummaryStat
+                label="Movies this year"
+                value={totals.thisYear}
+                hint={`Unique in ${currentYear}`}
+              />
             </View>
 
-            {shown === 0 ? (
-              <Text style={[styles.noneNote, { color: colors.textMuted }]}>
-                No visits logged in {yearFilter}.
-              </Text>
-            ) : null}
-
-            {groups.map((group) => (
-              <View key={group.key} style={styles.group}>
-                <View style={styles.groupHeader}>
-                  <Text style={[styles.groupLabel, { color: colors.text }]}>{group.label}</Text>
-                  <Text style={[styles.groupCount, { color: colors.text, opacity: 0.7 }]}>
-                    {group.entries.length} {group.entries.length === 1 ? 'visit' : 'visits'}
+            {yearGroups.map((yearGroup) => (
+              <View key={yearGroup.year} style={styles.yearBlock}>
+                <View style={styles.yearHeader}>
+                  <Text style={[styles.yearTitle, { color: colors.text }]}>{yearGroup.year}</Text>
+                  <View style={[styles.yearLine, { backgroundColor: colors.border }]} />
+                  <Text style={[styles.yearCount, { color: colors.textMuted }]}>
+                    {yearGroup.count} {yearGroup.count === 1 ? 'visit' : 'visits'}
                   </Text>
                 </View>
 
-                {group.entries.map((entry) => {
-                  const rating = typeof entry.rating === 'number' ? entry.rating : 0;
-                  return (
-                    <Pressable
-                      key={entry.id}
-                      style={({ pressed }) => [
-                        styles.entry,
-                        { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-                        pressed && { opacity: 0.82 },
-                      ]}
-                      onPress={() =>
-                        router.push({ pathname: '/viewing/[entryId]', params: { entryId: entry.id } })
-                      }
-                      // No button role here: the Edit control below is a nested button.
-                      accessible
-                      accessibilityLabel={`Open ${entry.title}`}
-                    >
-                      <Poster
-                        uri={resolvePoster(library, entry.movieId, entry.title)}
-                        title={entry.title}
-                        width={40}
-                        radius={RADIUS.md}
-                      />
-                      <View style={styles.entryBody}>
-                        <Text style={[styles.entryTitle, { color: colors.text }]} numberOfLines={2}>
-                          {entry.title}
-                        </Text>
-                        <View style={styles.metaRow}>
-                          <Ionicons name="calendar-outline" size={13} color={colors.textMuted} />
-                          <Text
-                            style={[styles.meta, { color: colors.text }]}
-                            numberOfLines={1}
-                          >
-                            {formatShortDate(entry.watchedAt)}
-                            {entry.theatre ? ` · ${entry.theatre}` : ''}
-                          </Text>
-                          {rating > 0 ? (
-                            <View style={styles.ratingBadge}>
-                              <Ionicons name="star" size={10} color={colors.star} />
-                              <Text style={[styles.ratingText, { color: colors.textMuted }]}>
-                                {rating.toFixed(1)}
+                {yearGroup.months.map((monthGroup) => (
+                  <View
+                    key={monthGroup.key}
+                    style={[
+                      styles.monthCard,
+                      { backgroundColor: colors.surface, borderColor: colors.borderSoft },
+                    ]}
+                  >
+                    <View style={styles.monthHead}>
+                      <View style={[styles.monthTick, { backgroundColor: colors.gold }]} />
+                      <Text style={[styles.monthName, { color: colors.coralInk }]}>
+                        {MONTH_NAMES[monthGroup.month].toUpperCase()}
+                      </Text>
+                      <Text style={[styles.monthCount, { color: colors.textMuted }]}>
+                        {monthGroup.entries.length}{' '}
+                        {monthGroup.entries.length === 1 ? 'visit' : 'visits'}
+                      </Text>
+                    </View>
+
+                    {monthGroup.entries.map((entry) => {
+                      const date = toDate(entry.watchedAt);
+                      const rating = typeof entry.rating === 'number' ? entry.rating : 0;
+                      const place = theatreDisplay(entry, library.theatres);
+                      return (
+                        <Pressable
+                          key={entry.id}
+                          style={({ pressed }) => [
+                            styles.row,
+                            { borderTopColor: colors.borderSoft },
+                            pressed && { backgroundColor: colors.accentSoft },
+                          ]}
+                          onPress={() =>
+                            router.push({ pathname: '/viewing/[entryId]', params: { entryId: entry.id } })
+                          }
+                          // No button role here: the Edit control below is a nested button.
+                          accessible
+                          accessibilityLabel={`Open ${entry.title}`}
+                        >
+                          <View style={styles.dayStub}>
+                            <Text style={[styles.dayNumber, { color: colors.text }]}>
+                              {date.getDate()}
+                            </Text>
+                            <Text style={[styles.weekday, { color: colors.textMuted }]}>
+                              {WEEKDAYS[date.getDay()]}
+                            </Text>
+                          </View>
+
+                          <View style={styles.body}>
+                            <View style={styles.titleRow}>
+                              <Text
+                                style={[styles.title, { color: colors.text }]}
+                                numberOfLines={2}
+                              >
+                                {entry.title}
                               </Text>
+                              {entry.companion ? (
+                                <View style={[styles.companionTag, { backgroundColor: colors.coralSoft }]}>
+                                  <Text style={[styles.companionTagText, { color: colors.coralInk }]}>
+                                    {COMPANION_LABELS[entry.companion]}
+                                  </Text>
+                                </View>
+                              ) : null}
                             </View>
-                          ) : null}
-                        </View>
-                        {entry.notes ? (
-                          <Text
-                            style={[styles.notes, { color: colors.textDim }]}
-                            numberOfLines={1}
+                            {place || rating > 0 ? (
+                              <View style={styles.line}>
+                                {place ? (
+                                  <>
+                                    <Ionicons name="location-outline" size={13} color={colors.textMuted} />
+                                    <Text
+                                      style={[styles.lineText, { color: colors.text }]}
+                                      numberOfLines={1}
+                                    >
+                                      {place.name}
+                                    </Text>
+                                  </>
+                                ) : null}
+                                {rating > 0 ? (
+                                  <View style={styles.rating}>
+                                    <Ionicons name="star" size={11} color={colors.star} />
+                                    <Text style={[styles.ratingText, { color: colors.textMuted }]}>
+                                      {rating.toFixed(1)}
+                                    </Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                            ) : null}
+                            {entry.notes ? (
+                              <Text style={[styles.notes, { color: colors.textDim }]} numberOfLines={1}>
+                                {entry.notes}
+                              </Text>
+                            ) : null}
+                          </View>
+
+                          <Pressable
+                            hitSlop={8}
+                            onPress={() =>
+                              router.navigate({
+                                pathname: '/log',
+                                params: { editEntryId: entry.id, from: 'diary' },
+                              })
+                            }
+                            accessibilityRole="button"
+                            accessibilityLabel={`Edit ${entry.title}`}
+                            style={({ pressed }) => [
+                              styles.editBadge,
+                              { backgroundColor: colors.surfaceAlt },
+                              pressed && { opacity: 0.6 },
+                            ]}
                           >
-                            {entry.notes}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Pressable
-                        hitSlop={8}
-                        onPress={() =>
-                          router.navigate({
-                            pathname: '/log',
-                            params: { editEntryId: entry.id, from: 'diary' },
-                          })
-                        }
-                        accessibilityRole="button"
-                        accessibilityLabel={`Edit ${entry.title}`}
-                        style={({ pressed }) => [
-                          styles.editBadge,
-                          { backgroundColor: colors.surfaceAlt },
-                          pressed && { opacity: 0.6 },
-                        ]}
-                      >
-                        <Ionicons name="pencil" size={14} color={colors.coralInk} />
-                      </Pressable>
-                    </Pressable>
-                  );
-                })}
+                            <Ionicons name="pencil" size={14} color={colors.coralInk} />
+                          </Pressable>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ))}
               </View>
             ))}
           </>
@@ -264,34 +266,23 @@ export default function DiaryScreen() {
   );
 }
 
-function SummaryCard({
-  tone,
-  icon,
+function SummaryStat({
   label,
   value,
   hint,
 }: {
-  tone: 'blue' | 'mint';
-  icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   value: number;
   hint: string;
 }) {
   const { colors } = useTheme();
-  const palette =
-    tone === 'blue'
-      ? { bg: colors.coralSoft, ink: colors.coralInk, mark: colors.coral }
-      : { bg: colors.sageSoft, ink: colors.sageInk, mark: colors.sage };
   return (
-    <View style={[styles.summaryCard, { backgroundColor: palette.bg }]}>
-      <View style={styles.summaryHead}>
-        <Ionicons name={icon} size={18} color={palette.mark} />
-        <Text style={[styles.summaryLabel, { color: palette.ink }]}>
-          {label}
-        </Text>
-      </View>
-      <Text style={[styles.summaryValue, { color: colors.text }]}>{value}</Text>
-      <Text style={[styles.summaryHint, { color: palette.ink }]}>
+    <View style={styles.stat} accessibilityLabel={`${label}: ${value}. ${hint}`}>
+      <Text style={[styles.statLabel, { color: colors.textMuted }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[styles.statHint, { color: colors.textMuted }]} numberOfLines={1}>
         {hint}
       </Text>
     </View>
@@ -310,156 +301,186 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: SPACE.sm,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 12,
-    marginTop: 10,
-  },
-  summaryCard: {
-    flex: 1,
-    minWidth: 0,
-    padding: 11,
-    borderRadius: 16,
-  },
-  summaryHead: {
+  summary: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  summaryLabel: {
-    flex: 1,
-    fontSize: 13.5,
-    lineHeight: 17,
-    fontWeight: '800',
-    letterSpacing: -0.1,
-  },
-  summaryValue: {
-    fontFamily: SERIF,
-    fontSize: 32,
-    lineHeight: 36,
-    fontWeight: '700',
-    letterSpacing: -0.8,
-    marginTop: 2,
-    fontVariant: ['tabular-nums'],
-  },
-  summaryHint: {
-    fontSize: 12,
-    lineHeight: 15,
-    fontWeight: '600',
-  },
-  yearBar: {
     marginHorizontal: 12,
     marginTop: 10,
-    height: 40,
-    borderRadius: RADIUS.pill,
+    paddingVertical: 10,
+    borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
   },
-  yearRow: {
-    flexGrow: 1,
+  summaryDivider: {
+    width: StyleSheet.hairlineWidth * 2,
+    height: 48,
+  },
+  stat: {
+    flex: 1,
+    minWidth: 0,
     alignItems: 'center',
-    padding: 4,
+    paddingHorizontal: 8,
   },
-  yearItem: {
-    flexGrow: 1,
-    height: 32,
-    minWidth: 60,
-    paddingHorizontal: 12,
-    borderRadius: RADIUS.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
+  statLabel: {
+    ...TYPE.eyebrow,
+    fontSize: 9.5,
+    letterSpacing: 0.8,
   },
-  yearLabel: {
-    fontSize: 13.5,
+  statValue: {
+    fontFamily: SERIF,
+    fontSize: 28,
+    lineHeight: 32,
     fontWeight: '700',
+    letterSpacing: -0.6,
     fontVariant: ['tabular-nums'],
   },
-  yearDivider: {
-    position: 'absolute',
-    right: 0,
-    top: 8,
-    bottom: 8,
-    width: StyleSheet.hairlineWidth * 2,
-  },
-  noneNote: {
-    ...TYPE.caption,
-    fontSize: 12,
-    textAlign: 'center',
-    paddingHorizontal: SPACE.lg,
-    marginTop: SPACE.md,
-  },
-  group: {
-    paddingHorizontal: 12,
-    marginTop: 8,
-  },
-  groupHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: 5,
-    paddingHorizontal: 4,
-    gap: SPACE.sm,
-  },
-  groupLabel: {
-    fontFamily: SERIF,
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
-  groupCount: {
+  statHint: {
     fontSize: 11.5,
-    fontWeight: '700',
+    lineHeight: 14,
+    fontWeight: '600',
   },
-  entry: {
+  yearBlock: {
+    paddingHorizontal: 12,
+    marginTop: 16,
+  },
+  yearHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    padding: 8,
-    borderRadius: 14,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  yearTitle: {
+    fontFamily: SERIF,
+    fontSize: 26,
+    lineHeight: 30,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    fontVariant: ['tabular-nums'],
+  },
+  yearLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth * 2,
+  },
+  yearCount: {
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  monthCard: {
+    borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 6,
+    marginBottom: 10,
+    overflow: 'hidden',
     shadowColor: '#142A45',
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
     elevation: 1,
   },
-  entryBody: {
+  monthHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  monthTick: {
+    width: 3,
+    height: 14,
+    borderRadius: 2,
+  },
+  monthName: {
+    flex: 1,
+    ...TYPE.eyebrow,
+    fontSize: 11.5,
+    letterSpacing: 1.2,
+  },
+  monthCount: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  dayStub: {
+    width: 30,
+    alignItems: 'center',
+  },
+  dayNumber: {
+    fontFamily: SERIF,
+    fontSize: 22,
+    lineHeight: 25,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
+  },
+  weekday: {
+    fontSize: 9.5,
+    lineHeight: 12,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  body: {
     flex: 1,
     minWidth: 0,
-    justifyContent: 'center',
   },
-  entryTitle: {
+  title: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 15,
+    lineHeight: 19,
     fontWeight: '800',
     letterSpacing: -0.2,
-    lineHeight: 19,
   },
-  metaRow: {
+  line: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     marginTop: 3,
   },
-  meta: {
+  lineText: {
     flexShrink: 1,
-    minWidth: 0,
     fontSize: 12.5,
     lineHeight: 16,
     fontWeight: '500',
-    opacity: 0.78,
+    opacity: 0.85,
   },
-  ratingBadge: {
+  rating: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 3,
     marginLeft: 4,
   },
   ratingText: {
-    fontSize: 11.5,
+    fontSize: 12.5,
+    lineHeight: 16,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  companionTag: {
+    flexShrink: 0,
+    marginTop: 1,
+    paddingHorizontal: 8,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  companionTagText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   notes: {
     fontSize: 11.5,
@@ -473,6 +494,5 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 2,
   },
 });

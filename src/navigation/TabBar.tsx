@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 // Type-only import (erased at runtime); expo-router does not re-export this props type from its index.
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs/types';
@@ -16,9 +16,51 @@ const ICONS: Record<string, { active: IconName; inactive: IconName; label: strin
   statistics: { active: 'stats-chart', inactive: 'stats-chart-outline', label: 'Statistics' },
 };
 
+// Active-tab pill. Drawn as one sliding View, so every tab shows the identical capsule shape.
+const PILL_WIDTH = 66;
+const PILL_HEIGHT = 46;
+const BAR_HEIGHT = 58;
+const BAR_PADDING = 3;
+
 export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+
+  const [barWidth, setBarWidth] = useState(0);
+  const [slide] = useState(() => new Animated.Value(0));
+  const [fade] = useState(() => new Animated.Value(1));
+  const placed = useRef(false);
+
+  const count = state.routes.length;
+  const tabWidth = barWidth > 0 ? (barWidth - BAR_PADDING * 2) / count : 0;
+  const focusedRoute = state.routes[state.index];
+  // The raised Log button has its own look, so the pill hides while Log is focused.
+  const pillVisible = focusedRoute?.name !== 'log';
+  const pillX = BAR_PADDING + state.index * tabWidth + (tabWidth - PILL_WIDTH) / 2;
+
+  useEffect(() => {
+    if (tabWidth === 0) return;
+    if (!placed.current) {
+      // First layout: jump straight to the active tab instead of sliding in from the left.
+      placed.current = true;
+      slide.setValue(pillX);
+      fade.setValue(pillVisible ? 1 : 0);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(slide, {
+        toValue: pillX,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(fade, {
+        toValue: pillVisible ? 1 : 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [pillX, pillVisible, tabWidth, slide, fade]);
 
   // The Edit Viewing form (Log tab opened with an entry id) uses the whole screen.
   const activeRoute = state.routes[state.index];
@@ -34,7 +76,21 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
         { paddingBottom: insets.bottom > 0 ? insets.bottom + 4 : 10 },
       ]}
     >
-      <View style={[styles.bar, { backgroundColor: colors.nav, borderColor: colors.borderSoft }]}>
+      <View
+        onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
+        style={[styles.bar, { backgroundColor: colors.nav, borderColor: colors.borderSoft }]}
+      >
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.pill,
+            {
+              backgroundColor: colors.navActive,
+              opacity: fade,
+              transform: [{ translateX: slide }],
+            },
+          ]}
+        />
         {state.routes.map((route, index) => {
           const focused = state.index === index;
           const isLog = route.name === 'log';
@@ -101,12 +157,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
               onLongPress={onLongPress}
               style={styles.tab}
             >
-              <View
-                style={[
-                  styles.tabInner,
-                  focused && { backgroundColor: colors.navActive },
-                ]}
-              >
+              <View style={styles.tabInner}>
                 <Ionicons
                   name={focused ? iconSet.active : iconSet.inactive}
                   size={18}
@@ -138,12 +189,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
   },
   bar: {
-    height: 58,
+    height: BAR_HEIGHT,
     borderRadius: 24,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 3,
+    paddingHorizontal: BAR_PADDING,
     overflow: 'visible',
     shadowColor: '#142A45',
     shadowOpacity: 0.14,
@@ -156,11 +207,21 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    // Web only: no browser focus rectangle around the tab (the pill already marks the active tab).
+    outlineStyle: 'none',
+  } as object,
+  pill: {
+    position: 'absolute',
+    left: 0,
+    top: (BAR_HEIGHT - PILL_HEIGHT) / 2 - StyleSheet.hairlineWidth,
+    width: PILL_WIDTH,
+    height: PILL_HEIGHT,
+    // Half the height gives a full capsule; one radius on one View, so no tab can look squarer than another.
+    borderRadius: PILL_HEIGHT / 2,
   },
   tabInner: {
-    width: 66,
-    height: 46,
-    borderRadius: 23,
+    width: PILL_WIDTH,
+    height: PILL_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,

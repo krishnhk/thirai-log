@@ -8,6 +8,9 @@ import { markWatchlistWatched } from '../lib/library';
 import { Movies, type Movie } from '../api/movies';
 import { INPUT_RESET, SPACE, RADIUS, TYPE, useTheme } from '../theme';
 import { Card } from '../components/Card';
+import { TheatrePicker } from '../components/TheatrePicker';
+import { CompanionPicker } from '../components/CompanionPicker';
+import { useLibrary } from '../hooks/useLibrary';
 import { PosterPicker } from '../components/PosterPicker';
 import { RatingStars } from '../components/RatingStars';
 import { Chip } from '../components/Chip';
@@ -18,6 +21,7 @@ import {
   saveViewingEntry,
   STORAGE_KEYS,
   updateFilmPoster,
+  type Companion,
   type EntryStatus,
   type ViewingEntry,
 } from '../lib/library';
@@ -27,9 +31,11 @@ const STATUSES: EntryStatus[] = ['planned', 'watched', 'skipped', 'postponed'];
 
 interface MovieDetailsProps {
   movieId: string;
+  /** The viewing to edit. Without it the screen logs a new viewing of the film. */
+  entryId?: string;
 }
 
-export default function MovieDetailsScreen({ movieId }: MovieDetailsProps) {
+export default function MovieDetailsScreen({ movieId, entryId }: MovieDetailsProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -37,6 +43,13 @@ export default function MovieDetailsScreen({ movieId }: MovieDetailsProps) {
   const [loaded, setLoaded] = useState(false);
   const [watchedAt, setWatchedAt] = useState(todayInputValue());
   const [theatre, setTheatre] = useState('');
+  const [theatreId, setTheatreId] = useState<string | undefined>(undefined);
+  const { library } = useLibrary();
+  const [companion, setCompanion] = useState<Companion | undefined>(undefined);
+  const [companionError, setCompanionError] = useState(false);
+  const [unansweredOld, setUnansweredOld] = useState(false);
+  // Id of the viewing this screen created, so saving again updates it instead of adding another.
+  const [createdId, setCreatedId] = useState<string | undefined>(undefined);
   const [rating, setRating] = useState(0);
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<EntryStatus>('planned');
@@ -48,10 +61,14 @@ export default function MovieDetailsScreen({ movieId }: MovieDetailsProps) {
       if (cachedMovie) setMovie(cachedMovie);
 
       const list = await readJson<ViewingEntry[]>(STORAGE_KEYS.viewingEntries, []);
-      const entry = list.find((item) => item.movieId === movieId);
+      // Several viewings can share one film, so only the viewing that was opened is loaded.
+      const entry = entryId ? list.find((item) => item.id === entryId) : undefined;
       if (entry) {
         setWatchedAt(entry.watchedAt ? new Date(entry.watchedAt).toISOString().slice(0, 10) : todayInputValue());
         setTheatre(entry.theatre ?? '');
+        setTheatreId(entry.theatreId);
+        setCompanion(entry.companion);
+        setUnansweredOld(!entry.companion);
         setRating(entry.rating ?? 0);
         setNotes(entry.notes ?? '');
         setStatus((entry.status as EntryStatus) ?? 'planned');
@@ -67,25 +84,34 @@ export default function MovieDetailsScreen({ movieId }: MovieDetailsProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMovie();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [movieId]);
+  }, [movieId, entryId]);
 
   const saveViewing = async () => {
+    if (!companion) {
+      setCompanionError(true);
+      return;
+    }
     try {
       const list = await readJson<ViewingEntry[]>(STORAGE_KEYS.viewingEntries, []);
-      const existing = list.find((item) => item.movieId === movieId);
+      const currentId = entryId ?? createdId;
+      const existing = currentId ? list.find((item) => item.id === currentId) : undefined;
       const parsedDate = new Date(watchedAt);
 
+      const savedId = existing?.id ?? `${movieId}-${Date.now()}`;
       await saveViewingEntry({
-        id: existing?.id ?? `${movieId}-${Date.now()}`,
+        id: savedId,
         movieId,
         title: movie?.title ?? '',
         watchedAt: Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString(),
         theatre: theatre.trim() || undefined,
+        theatreId: theatre.trim() ? theatreId : undefined,
+        companion,
         rating: rating > 0 ? rating : undefined,
         notes: notes.trim() || undefined,
         status,
         createdAt: existing?.createdAt ?? new Date().toISOString(),
       });
+      setCreatedId(savedId);
       if (status === 'watched') await markWatchlistWatched(movieId, movie?.title ?? '');
       notify('Saved', 'Your viewing record has been updated.');
     } catch {
@@ -168,6 +194,7 @@ export default function MovieDetailsScreen({ movieId }: MovieDetailsProps) {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       {backButton}
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + SPACE.xxxl }}
       >
@@ -246,14 +273,29 @@ export default function MovieDetailsScreen({ movieId }: MovieDetailsProps) {
           </View>
 
           <Text style={[styles.fieldLabel, { color: colors.textDim }]}>Theatre</Text>
-          <View style={[styles.inputRow, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-            <Ionicons name="location-outline" size={16} color={colors.textDim} />
-            <TextInput
-              value={theatre}
-              onChangeText={setTheatre}
-              placeholder="Theatre or venue"
-              placeholderTextColor={colors.textDim}
-              style={[styles.input, { color: colors.text }]}
+          <TheatrePicker
+            value={theatre}
+            theatreId={theatreId}
+            theatres={library.theatres}
+            onChange={(next) => {
+              setTheatre(next.theatre);
+              setTheatreId(next.theatreId);
+            }}
+          />
+
+          <View style={styles.companionField}>
+            <CompanionPicker
+              value={companion}
+              onChange={(value) => {
+                setCompanion(value);
+                setCompanionError(false);
+              }}
+              error={companionError && !companion ? 'Choose who you watched with.' : null}
+              hint={
+                unansweredOld && !companion
+                  ? 'This viewing was saved before this question existed, so nothing is selected yet.'
+                  : null
+              }
             />
           </View>
 
@@ -297,6 +339,9 @@ export default function MovieDetailsScreen({ movieId }: MovieDetailsProps) {
 }
 
 const styles = StyleSheet.create({
+  companionField: {
+    marginTop: SPACE.md,
+  },
   root: {
     flex: 1,
   },

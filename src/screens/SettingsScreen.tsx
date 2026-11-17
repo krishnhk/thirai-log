@@ -54,6 +54,7 @@ export default function SettingsScreen() {
         viewingEntries: await readJsonKey(STORAGE_KEYS.viewingEntries),
         watchlistMovies: await readJsonKey(STORAGE_KEYS.watchlistMovies),
         annualWatchlists: await readJsonKey(STORAGE_KEYS.annualWatchlists),
+        theatres: await readJsonKey(DATA_FILES.theatres),
         settings: { ...settings, theme: mode },
         exportedAt: new Date().toISOString(),
       };
@@ -171,6 +172,21 @@ export default function SettingsScreen() {
               <Text style={[styles.rowLabel, { color: colors.text }]}>Film database</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.coralInk} />
+          </Pressable>
+          <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
+          <Pressable
+            onPress={() => router.push('/theatres')}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
+          >
+            <View style={styles.rowLeft}>
+              <IconBadge icon="location" color={colors.coralInk} bg={colors.coralSoft} />
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Theatres visited</Text>
+            </View>
+            <View style={styles.rowRight}>
+              <Text style={[styles.value, { color: colors.coralInk }]}>{library.theatres.length}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.coralInk} />
+            </View>
           </Pressable>
           <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
           <View style={styles.row}>
@@ -382,6 +398,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     flexShrink: 1,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   iconBadge: {
     width: 30,

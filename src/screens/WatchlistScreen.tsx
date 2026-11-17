@@ -33,6 +33,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Poster } from '../components/Poster';
 import { PosterPicker } from '../components/PosterPicker';
 import { Chip } from '../components/Chip';
+import { YearSelect } from '../components/YearSelect';
 import { StatusPill } from '../components/StatusPill';
 import { ActionButton } from '../components/ActionButton';
 
@@ -210,6 +211,8 @@ export default function WatchlistScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <AppHeader />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -220,25 +223,16 @@ export default function WatchlistScreen() {
           alignSelf: 'center',
         }}
       >
-        <AppHeader />
-
         <View style={styles.topRow}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.yearScroller}
-            contentContainerStyle={styles.yearRow}
-          >
-            {years.map((year) => (
-              <Chip
-                key={year}
-                compact
-                label={String(year)}
-                active={selectedYear === year}
-                onPress={() => setSelectedYear(year)}
-              />
-            ))}
-          </ScrollView>
+          <View style={styles.yearScroller}>
+            <YearSelect
+              title="Watchlist year"
+              arrows={false}
+              options={years.map((year) => ({ value: String(year), label: String(year) }))}
+              value={String(selectedYear)}
+              onChange={(value) => setSelectedYear(Number(value))}
+            />
+          </View>
           <ActionButton
             label="Add a film"
             icon="add"
@@ -485,7 +479,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addButton: {
-    minHeight: 32,
+    minHeight: 42,
     paddingHorizontal: 12,
     marginLeft: 8,
   },
@@ -498,13 +492,7 @@ const styles = StyleSheet.create({
   },
   yearScroller: {
     flex: 1,
-    flexGrow: 1,
-  },
-  yearRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 6,
+    paddingLeft: 12,
   },
   progressStrip: {
     flexDirection: 'row',

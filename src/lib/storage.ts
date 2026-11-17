@@ -16,6 +16,8 @@ export const DATA_FILES = {
   movies: 'movies',
   settings: 'settings',
   theme: 'theme',
+  theatres: 'theatres',
+  theatreImport: 'theatreImport',
 } as const;
 
 export type DataFile = (typeof DATA_FILES)[keyof typeof DATA_FILES];
@@ -28,6 +30,8 @@ const LEGACY_KEYS: Record<DataFile, string> = {
   movies: '@thirai-log:movies',
   settings: '@thirai-log:userSettings',
   theme: '@thirai-log:theme',
+  theatres: '@thirai-log:theatres',
+  theatreImport: '@thirai-log:theatreImport',
 };
 
 const MIGRATION_MARKER = '.migrated';

@@ -6,6 +6,7 @@ import { SPACE, RADIUS, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { resolvePoster, type ViewingEntry } from '../lib/library';
 import { formatDate, monthShort, MONTH_NAMES, toDate } from '../lib/format';
+import { companionStats, viewingsFilmsNote } from '../lib/stats';
 import { AppHeader } from '../components/AppHeader';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
@@ -20,12 +21,15 @@ function MiniStat({
   icon,
   tint,
   hint,
+  note,
 }: {
   label: string;
   value: string | number;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   tint: string;
   hint: string;
+  /** Optional extra line under the hint. */
+  note?: string | null;
 }) {
   const { colors } = useTheme();
   return (
@@ -41,6 +45,11 @@ function MiniStat({
         <Text style={[styles.miniHint, { color: colors.textMuted }]} numberOfLines={1}>
           {hint}
         </Text>
+        {note ? (
+          <Text style={[styles.miniHint, { color: colors.textMuted }]} numberOfLines={2}>
+            {note}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -105,6 +114,7 @@ export default function StatisticsScreen() {
     };
   }, [library, year]);
 
+  const companion = useMemo(() => companionStats(library.entries, year), [library.entries, year]);
   const completion =
     stats.bucketTotal > 0 ? Math.round((stats.bucketWatched / stats.bucketTotal) * 100) : 0;
   const monthlyPeak = Math.max(...stats.monthlyCounts);
@@ -112,6 +122,8 @@ export default function StatisticsScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <AppHeader />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -121,8 +133,6 @@ export default function StatisticsScreen() {
           alignSelf: 'center',
         }}
       >
-        <AppHeader />
-
         {loading ? (
           <View style={styles.loading}>
             <ActivityIndicator color={colors.accent} />
@@ -160,6 +170,30 @@ export default function StatisticsScreen() {
                   hint={`${stats.bucketWatched}/${stats.bucketTotal} this year`}
                 />
               </View>
+              <View style={styles.statRow}>
+                <MiniStat
+                  label="Solo"
+                  value={companion.alone.viewings}
+                  icon="person-outline"
+                  tint={colors.primary}
+                  hint="this year"
+                  note={viewingsFilmsNote(companion.alone)}
+                />
+                <MiniStat
+                  label="Group"
+                  value={companion.company.viewings}
+                  icon="people-outline"
+                  tint={colors.teal}
+                  hint="this year"
+                  note={viewingsFilmsNote(companion.company)}
+                />
+              </View>
+              {companion.unanswered > 0 ? (
+                <Text style={[styles.unansweredNote, { color: colors.textMuted }]}>
+                  {companion.unanswered} {companion.unanswered === 1 ? 'viewing' : 'viewings'} this year{' '}
+                  {companion.unanswered === 1 ? 'has' : 'have'} no answer yet.
+                </Text>
+              ) : null}
             </View>
 
             <Card style={styles.section}>
@@ -259,6 +293,10 @@ const styles = StyleSheet.create({
   statRow: {
     flexDirection: 'row',
     gap: 8,
+  },
+  unansweredNote: {
+    ...TYPE.small,
+    paddingHorizontal: 4,
   },
   mini: {
     flex: 1,

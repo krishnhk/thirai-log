@@ -1,6 +1,7 @@
 import { Movies, updateMovie, upsertMovie } from '../api/movies';
 import type { Movie } from '../api/movies';
 import { DATA_FILES, readJson, updateJson } from './storage';
+import { parseTheatres, type Theatre } from './theatres';
 
 // Kept under the same names so existing call sites keep working.
 export const STORAGE_KEYS = {
@@ -11,12 +12,19 @@ export const STORAGE_KEYS = {
 
 export type EntryStatus = 'planned' | 'watched' | 'skipped' | 'postponed';
 
+/** Who a viewing was watched with. Older viewings have no answer. */
+export type Companion = 'alone' | 'company';
+
 export interface ViewingEntry {
   id: string;
   movieId: string;
   title: string;
   watchedAt: string;
+  /** Theatre name as saved with the viewing. Older viewings only have this text. */
   theatre?: string;
+  /** Set when the theatre was picked from the Theatres list. */
+  theatreId?: string;
+  companion?: Companion;
   rating?: number;
   notes?: string;
   status?: EntryStatus;
@@ -48,6 +56,7 @@ export interface Library {
   movies: Movie[];
   posters: Record<string, string>;
   titlePosters: Record<string, string>;
+  theatres: Theatre[];
 }
 
 function normalizeStatus(value: unknown): EntryStatus {
@@ -61,6 +70,8 @@ function normalizeEntry(raw: any): ViewingEntry {
     title: String(raw?.title ?? 'Untitled'),
     watchedAt: raw?.watchedAt ?? new Date().toISOString(),
     theatre: raw?.theatre || undefined,
+    theatreId: raw?.theatreId ? String(raw.theatreId) : undefined,
+    companion: raw?.companion === 'alone' || raw?.companion === 'company' ? raw.companion : undefined,
     rating:
       typeof raw?.rating === 'number' && Number.isFinite(raw.rating) ? raw.rating : undefined,
     notes: raw?.notes || undefined,
@@ -93,10 +104,11 @@ function normalizeAnnual(raw: any): AnnualList {
 }
 
 export async function loadLibrary(): Promise<Library> {
-  const [entriesRaw, watchlistRaw, annualRaw, movies] = await Promise.all([
+  const [entriesRaw, watchlistRaw, annualRaw, theatresRaw, movies] = await Promise.all([
     readJson<any[]>(STORAGE_KEYS.viewingEntries, []),
     readJson<any[]>(STORAGE_KEYS.watchlistMovies, []),
     readJson<any[]>(STORAGE_KEYS.annualWatchlists, []),
+    readJson<unknown>(DATA_FILES.theatres, []),
     Movies.getCachedMovies().catch(() => [] as Movie[]),
   ]);
 
@@ -118,7 +130,9 @@ export async function loadLibrary(): Promise<Library> {
   watchlist.forEach(register);
   annual.forEach((list) => list.movies.forEach(register));
 
-  return { entries, watchlist, annual, movies, posters, titlePosters };
+  const theatres = parseTheatres(theatresRaw);
+
+  return { entries, watchlist, annual, movies, posters, titlePosters, theatres };
 }
 
 export function resolvePoster(library: Library, movieId?: string, title?: string): string | undefined {
@@ -308,5 +322,6 @@ export function emptyLibrary(): Library {
     movies: [],
     posters: {},
     titlePosters: {},
+    theatres: [],
   };
 }

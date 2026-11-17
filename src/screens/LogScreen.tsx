@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -20,6 +20,7 @@ import {
   resolvePoster,
   saveViewingEntry,
   updateFilmPoster,
+  type Companion,
   type ViewingEntry,
 } from '../lib/library';
 import type { Movie } from '../api/movies';
@@ -35,6 +36,8 @@ import { DATA_FILES, readJson } from '../lib/storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { confirmAction, notify } from '../lib/ui';
 import { AppHeader } from '../components/AppHeader';
+import { TheatrePicker } from '../components/TheatrePicker';
+import { CompanionPicker } from '../components/CompanionPicker';
 import { DatePickerSheet } from '../components/DatePickerSheet';
 import { Card } from '../components/Card';
 import { Poster } from '../components/Poster';
@@ -59,6 +62,12 @@ export default function LogScreen() {
   const [selected, setSelected] = useState<SelectedMovie | null>(null);
   const [dateText, setDateText] = useState(todayInputValue());
   const [theatre, setTheatre] = useState('');
+  const [theatreId, setTheatreId] = useState<string | undefined>(undefined);
+  const [companion, setCompanion] = useState<Companion | undefined>(undefined);
+  const [companionError, setCompanionError] = useState(false);
+  // True when an entry saved before the question existed is being edited.
+  const [unansweredOld, setUnansweredOld] = useState(false);
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [banner, setBanner] = useState<Banner>(null);
@@ -92,6 +101,10 @@ export default function LogScreen() {
     setQuery(entry.title);
     setDateText(toDate(entry.watchedAt).toISOString().slice(0, 10));
     setTheatre(entry.theatre ?? '');
+    setTheatreId(entry.theatreId);
+    setCompanion(entry.companion);
+    setCompanionError(false);
+    setUnansweredOld(!entry.companion);
     setBanner(null);
   }
 
@@ -129,6 +142,10 @@ export default function LogScreen() {
     setQuery('');
     setDateText(todayInputValue());
     setTheatre('');
+    setTheatreId(undefined);
+    setCompanion(undefined);
+    setCompanionError(false);
+    setUnansweredOld(false);
     setEditingId(null);
     router.setParams({ editEntryId: undefined, from: undefined });
   };
@@ -201,6 +218,12 @@ export default function LogScreen() {
       return;
     }
 
+    if (!companion) {
+      setCompanionError(true);
+      setBanner({ type: 'error', text: 'Choose who you watched with.' });
+      return;
+    }
+
     try {
       setSaving(true);
       const existing = editingId
@@ -214,6 +237,9 @@ export default function LogScreen() {
         title,
         watchedAt: parsedDate.toISOString(),
         theatre: theatre.trim() || undefined,
+        // Cleared together with the name; saveViewingEntry replaces both fields.
+        theatreId: theatre.trim() ? theatreId : undefined,
+        companion,
         status: 'watched',
         createdAt: existing?.createdAt ?? new Date().toISOString(),
       };
@@ -253,7 +279,56 @@ export default function LogScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      {editEntryId ? (
+        <View
+          style={[
+            styles.editHeader,
+            { paddingTop: insets.top + 12, backgroundColor: colors.background },
+          ]}
+        >
+          <Pressable
+            onPress={handleCancel}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={4}
+            style={({ pressed }) => [
+              styles.back,
+              { backgroundColor: colors.surface, borderColor: colors.borderSoft },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.coralInk} />
+          </Pressable>
+          <View style={styles.editHeaderText}>
+            <Text style={[styles.title, { color: colors.text }]}>Edit viewing</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              Changes are saved only when you update.
+            </Text>
+          </View>
+          {editingId ? (
+            <Pressable
+              onPress={handleDelete}
+              disabled={deleting}
+              accessibilityRole="button"
+              accessibilityLabel="Delete diary entry"
+              hitSlop={4}
+              style={({ pressed }) => [
+                styles.back,
+                styles.deleteButton,
+                { backgroundColor: `${colors.rose}14`, borderColor: `${colors.rose}66` },
+                (pressed || deleting) && { opacity: 0.6 },
+              ]}
+            >
+              <Ionicons name="trash-outline" size={19} color={colors.rose} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : (
+        <AppHeader />
+      )}
+
       <ScrollView
+        ref={scrollRef}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -263,57 +338,14 @@ export default function LogScreen() {
           alignSelf: 'center',
         }}
       >
-        {editEntryId ? (
-          <View style={[styles.editHeader, { paddingTop: insets.top + 12 }]}>
-            <Pressable
-              onPress={handleCancel}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              hitSlop={4}
-              style={({ pressed }) => [
-                styles.back,
-                { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Ionicons name="chevron-back" size={20} color={colors.coralInk} />
-            </Pressable>
-            <View style={styles.editHeaderText}>
-              <Text style={[styles.title, { color: colors.text }]}>Edit viewing</Text>
-              <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-                Changes are saved only when you update.
-              </Text>
-            </View>
-            {editingId ? (
-              <Pressable
-                onPress={handleDelete}
-                disabled={deleting}
-                accessibilityRole="button"
-                accessibilityLabel="Delete diary entry"
-                hitSlop={4}
-                style={({ pressed }) => [
-                  styles.back,
-                  styles.deleteButton,
-                  { backgroundColor: `${colors.rose}14`, borderColor: `${colors.rose}66` },
-                  (pressed || deleting) && { opacity: 0.6 },
-                ]}
-              >
-                <Ionicons name="trash-outline" size={19} color={colors.rose} />
-              </Pressable>
-            ) : null}
-          </View>
-        ) : (
-          <>
-            <AppHeader />
-
-            <View style={styles.titleBlock}>
-              <Text style={[styles.title, { color: colors.text }]}>Log a film</Text>
-              <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-                Capture the film, the theatre, and how it felt.
-              </Text>
-            </View>
-          </>
-        )}
+        {!editEntryId ? (
+      <View style={styles.titleBlock}>
+        <Text style={[styles.title, { color: colors.text }]}>Log a film</Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+          Capture the film, the theatre, and how it felt.
+        </Text>
+      </View>
+        ) : null}
 
         {banner ? (
           <View
@@ -463,17 +495,34 @@ export default function LogScreen() {
           </Field>
 
           <Field label="Theatre" optional>
-            <View style={[styles.inputRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Ionicons name="location-outline" size={17} color={colors.textMuted} />
-              <TextInput
-                value={theatre}
-                onChangeText={setTheatre}
-                placeholder="Theatre or venue name"
-                placeholderTextColor={colors.textMuted}
-                style={[styles.input, { color: colors.text }]}
-              />
-            </View>
+            <TheatrePicker
+              value={theatre}
+              theatreId={theatreId}
+              theatres={library.theatres}
+              onChange={(next) => {
+                setTheatre(next.theatre);
+                setTheatreId(next.theatreId);
+              }}
+              onOpen={() => scrollRef.current?.scrollToEnd({ animated: true })}
+            />
           </Field>
+
+          <View style={styles.field}>
+            <CompanionPicker
+              value={companion}
+              onChange={(value) => {
+                setCompanion(value);
+                setCompanionError(false);
+                setBanner(null);
+              }}
+              error={companionError && !companion ? 'Choose who you watched with.' : null}
+              hint={
+                unansweredOld && !companion
+                  ? 'This viewing was saved before this question existed, so nothing is selected yet.'
+                  : null
+              }
+            />
+          </View>
 
         </Card>
 

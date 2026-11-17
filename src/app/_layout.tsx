@@ -33,6 +33,7 @@ function RootNavigator() {
         <Stack.Screen name="movie/[movieId]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="add-movie" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="films" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="theatres" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </NavigationThemeProvider>
   );
