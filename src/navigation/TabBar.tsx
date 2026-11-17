@@ -17,8 +17,11 @@ const ICONS: Record<string, { active: IconName; inactive: IconName; label: strin
 };
 
 // Active-tab pill. Drawn as one sliding View, so every tab shows the identical capsule shape.
-const PILL_WIDTH = 66;
-const PILL_HEIGHT = 46;
+// Active-tab indicator: a slim horizontal capsule attached to the top edge of the bar.
+const INDICATOR_WIDTH = 48;
+const INDICATOR_HEIGHT = 5;
+const TAB_WIDTH = 66;
+const TAB_HEIGHT = 46;
 const BAR_HEIGHT = 58;
 const BAR_PADDING = 3;
 
@@ -36,7 +39,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
   const focusedRoute = state.routes[state.index];
   // The raised Log button has its own look, so the pill hides while Log is focused.
   const pillVisible = focusedRoute?.name !== 'log';
-  const pillX = BAR_PADDING + state.index * tabWidth + (tabWidth - PILL_WIDTH) / 2;
+  const pillX = BAR_PADDING + state.index * tabWidth + (tabWidth - INDICATOR_WIDTH) / 2;
 
   useEffect(() => {
     if (tabWidth === 0) return;
@@ -50,7 +53,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
     Animated.parallel([
       Animated.timing(slide, {
         toValue: pillX,
-        duration: 220,
+        duration: 250,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
@@ -85,7 +88,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
           style={[
             styles.pill,
             {
-              backgroundColor: colors.navActive,
+              backgroundColor: colors.accent,
               opacity: fade,
               transform: [{ translateX: slide }],
             },
@@ -161,13 +164,13 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
                 <Ionicons
                   name={focused ? iconSet.active : iconSet.inactive}
                   size={18}
-                  color={focused ? colors.navText : colors.navTextMuted}
+                  color={focused ? colors.accent : colors.navTextMuted}
                 />
                 <Text
                   style={[
                     styles.label,
                     {
-                      color: focused ? colors.navText : colors.navTextMuted,
+                      color: focused ? colors.accent : colors.navTextMuted,
                       fontWeight: focused ? '800' : '600',
                     },
                   ]}
@@ -213,15 +216,15 @@ const styles = StyleSheet.create({
   pill: {
     position: 'absolute',
     left: 0,
-    top: (BAR_HEIGHT - PILL_HEIGHT) / 2 - StyleSheet.hairlineWidth,
-    width: PILL_WIDTH,
-    height: PILL_HEIGHT,
-    // Half the height gives a full capsule; one radius on one View, so no tab can look squarer than another.
-    borderRadius: PILL_HEIGHT / 2,
+    top: 0,
+    width: INDICATOR_WIDTH,
+    height: INDICATOR_HEIGHT,
+    // Fully rounded ends: a semicircle at each side.
+    borderRadius: 999,
   },
   tabInner: {
-    width: PILL_WIDTH,
-    height: PILL_HEIGHT,
+    width: TAB_WIDTH,
+    height: TAB_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
