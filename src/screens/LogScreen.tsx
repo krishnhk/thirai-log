@@ -6,11 +6,11 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  BackHandler,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INPUT_RESET, SPACE, RADIUS, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { useMovieSearch } from '../hooks/useMovieSearch';
@@ -23,9 +23,19 @@ import {
   type ViewingEntry,
 } from '../lib/library';
 import type { Movie } from '../api/movies';
-import { formatDate, parseInputDate, todayInputValue, toDate, yearOf } from '../lib/format';
-import { confirmAction } from '../lib/ui';
-import { ScreenHeader } from '../components/ScreenHeader';
+import {
+  formatInputDate,
+  parseInputDate,
+  todayInputValue,
+  toDate,
+  yearOf,
+  type DateStyle,
+} from '../lib/format';
+import { DATA_FILES, readJson } from '../lib/storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { confirmAction, notify } from '../lib/ui';
+import { AppHeader } from '../components/AppHeader';
+import { DatePickerSheet } from '../components/DatePickerSheet';
 import { Card } from '../components/Card';
 import { Poster } from '../components/Poster';
 import { ActionButton } from '../components/ActionButton';
@@ -52,6 +62,10 @@ export default function LogScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [banner, setBanner] = useState<Banner>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [dateStyle, setDateStyle] = useState<DateStyle>('medium');
 
   const searchable = useMemo(() => searchableFilms(library), [library]);
   const { results } = useMovieSearch(query, searchable);
@@ -68,24 +82,6 @@ export default function LogScreen() {
     }, [editEntryId])
   );
 
-  // Pre-fill the form when arriving from Diary or Statistics. Only once per entry,
-  // so a background library refresh cannot overwrite what the user is typing.
-  useEffect(() => {
-    if (!editEntryId || editingId === editEntryId) return;
-    const entry = library.entries.find((item) => item.id === editEntryId);
-    if (!entry) return;
-    fillFromEntry(entry);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editEntryId, library, editingId]);
-
-  const recentEntries = useMemo(
-    () =>
-      [...library.entries]
-        .sort((a, b) => toDate(b.watchedAt).getTime() - toDate(a.watchedAt).getTime())
-        .slice(0, 6),
-    [library.entries]
-  );
-
   function fillFromEntry(entry: ViewingEntry) {
     setEditingId(entry.id);
     setSelected({
@@ -99,6 +95,35 @@ export default function LogScreen() {
     setBanner(null);
   }
 
+  // Date style chosen in Settings, used for the date shown in the field.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      readJson<{ dateFormat?: string } | null>(DATA_FILES.settings, null)
+        .then((saved) => {
+          const style = saved?.dateFormat;
+          if (active && (style === 'short' || style === 'medium' || style === 'long')) {
+            setDateStyle(style);
+          }
+        })
+        .catch(() => {});
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
+  // Pre-fill the form when arriving from Diary or Statistics. Only once per entry,
+  // so a background library refresh cannot overwrite what the user is typing.
+  useEffect(() => {
+    if (!editEntryId || editingId === editEntryId) return;
+    const entry = library.entries.find((item) => item.id === editEntryId);
+    if (!entry) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fillFromEntry(entry);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editEntryId, library, editingId]);
+
   const resetForm = () => {
     setSelected(null);
     setQuery('');
@@ -106,6 +131,43 @@ export default function LogScreen() {
     setTheatre('');
     setEditingId(null);
     router.setParams({ editEntryId: undefined, from: undefined });
+  };
+
+  // Editing: discard changes (the saved entry is untouched) and go back to where the edit started.
+  const handleCancel = useCallback(() => {
+    resetForm();
+    if (from === 'diary') router.navigate('/diary');
+  }, [from]);
+
+  // Android back button while editing from the Diary returns to the Diary.
+  useFocusEffect(
+    useCallback(() => {
+      if (!editEntryId || from !== 'diary') return undefined;
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleCancel();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [editEntryId, from, handleCancel])
+  );
+
+  // Deletes only this viewing record. The film itself, other viewings of it and the watchlist stay.
+  const handleDelete = () => {
+    const id = editingId;
+    if (!id || deleting) return;
+    confirmAction('Delete entry', 'Are you sure you want to delete this diary entry?', async () => {
+      setDeleting(true);
+      try {
+        await deleteViewingEntry(id);
+        await refresh();
+        resetForm();
+        router.navigate('/diary');
+      } catch {
+        notify('Could not delete', 'This diary entry could not be deleted. Please try again.');
+      } finally {
+        setDeleting(false);
+      }
+    });
   };
 
   const handleSelect = (movie: Movie) => {
@@ -171,6 +233,10 @@ export default function LogScreen() {
         router.navigate('/diary');
         return;
       }
+      if (!wasEditing) {
+        router.push({ pathname: '/viewing/[entryId]', params: { entryId: entry.id, justLogged: '1' } });
+        return;
+      }
       setBanner({
         type: 'success',
         text: wasEditing ? 'Viewing updated.' : 'Viewing saved to your diary.',
@@ -182,15 +248,6 @@ export default function LogScreen() {
     }
   };
 
-  const handleDelete = (entry: ViewingEntry) => {
-    confirmAction('Delete entry', `Remove “${entry.title}” from your diary?`, async () => {
-      await deleteViewingEntry(entry.id);
-      await refresh();
-      if (editingId === entry.id) resetForm();
-      setBanner({ type: 'success', text: 'Viewing removed.' });
-    });
-  };
-
   const isPicked = selected !== null && query === selected.title;
   const showResults = query.trim().length > 0 && !isPicked;
 
@@ -200,17 +257,63 @@ export default function LogScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingBottom: SPACE.xxl,
+          paddingBottom: SPACE.lg,
           width: '100%',
           maxWidth: 720,
           alignSelf: 'center',
         }}
       >
-        <ScreenHeader
-          eyebrow={editingId ? 'Editing' : 'New viewing'}
-          title={editingId ? 'Edit viewing' : 'Log a film'}
-          subtitle="Capture the film, the theatre, and how it felt."
-        />
+        {editEntryId ? (
+          <View style={[styles.editHeader, { paddingTop: insets.top + 12 }]}>
+            <Pressable
+              onPress={handleCancel}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              hitSlop={4}
+              style={({ pressed }) => [
+                styles.back,
+                { backgroundColor: colors.surface, borderColor: colors.borderSoft },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.coralInk} />
+            </Pressable>
+            <View style={styles.editHeaderText}>
+              <Text style={[styles.title, { color: colors.text }]}>Edit viewing</Text>
+              <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+                Changes are saved only when you update.
+              </Text>
+            </View>
+            {editingId ? (
+              <Pressable
+                onPress={handleDelete}
+                disabled={deleting}
+                accessibilityRole="button"
+                accessibilityLabel="Delete diary entry"
+                hitSlop={4}
+                style={({ pressed }) => [
+                  styles.back,
+                  styles.deleteButton,
+                  { backgroundColor: `${colors.rose}14`, borderColor: `${colors.rose}66` },
+                  (pressed || deleting) && { opacity: 0.6 },
+                ]}
+              >
+                <Ionicons name="trash-outline" size={19} color={colors.rose} />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <>
+            <AppHeader />
+
+            <View style={styles.titleBlock}>
+              <Text style={[styles.title, { color: colors.text }]}>Log a film</Text>
+              <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+                Capture the film, the theatre, and how it felt.
+              </Text>
+            </View>
+          </>
+        )}
 
         {banner ? (
           <View
@@ -239,9 +342,17 @@ export default function LogScreen() {
         ) : null}
 
         <Card style={styles.section}>
-          <StepLabel step="1" title="The film" />
-          <View style={[styles.searchRow, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-            <Ionicons name="search" size={17} color={colors.textDim} />
+          <StepLabel step="1" title="The Film" />
+          <View
+            style={[
+              styles.searchRow,
+              {
+                backgroundColor: colors.background,
+                borderColor: searchFocused ? colors.accent : `${colors.accent}66`,
+              },
+            ]}
+          >
+            <Ionicons name="search" size={18} color={colors.accent} />
             <TextInput
               value={query}
               onChangeText={(text) => {
@@ -250,7 +361,9 @@ export default function LogScreen() {
                 setBanner(null);
               }}
               placeholder="Search films by title…"
-              placeholderTextColor={colors.textDim}
+              placeholderTextColor={colors.textMuted}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               style={[styles.searchInput, { color: colors.text }]}
               returnKeyType="search"
               autoCorrect={false}
@@ -264,7 +377,7 @@ export default function LogScreen() {
                 accessibilityLabel="Clear search"
                 hitSlop={8}
               >
-                <Ionicons name="close-circle" size={18} color={colors.textDim} />
+                <Ionicons name="close-circle" size={18} color={colors.textMuted} />
               </Pressable>
             ) : null}
           </View>
@@ -281,13 +394,13 @@ export default function LogScreen() {
                     pressed && { opacity: 0.7 },
                   ]}
                 >
-                  <Poster uri={movie.posterPath} title={movie.title} width={38} radius={RADIUS.sm} />
+                  <Poster uri={movie.posterPath} title={movie.title} width={34} radius={RADIUS.sm} />
                   <View style={styles.resultText}>
                     <Text style={[styles.resultTitle, { color: colors.text }]} numberOfLines={1}>
                       {movie.title}
                     </Text>
                     {movie.releaseDate ? (
-                      <Text style={[styles.resultMeta, { color: colors.textDim }]}>
+                      <Text style={[styles.resultMeta, { color: colors.textMuted }]}>
                         {yearOf(movie.releaseDate)}
                       </Text>
                     ) : null}
@@ -311,100 +424,58 @@ export default function LogScreen() {
           ) : null}
 
           {!showResults && !selected ? (
-            <Text style={[styles.hint, { color: colors.textDim }]}>
+            <Text style={[styles.hint, { color: colors.textMuted }]}>
               Search films you have logged before, or type a title to add it manually.
             </Text>
           ) : null}
         </Card>
 
         <Card style={styles.section}>
-          <StepLabel step="2" title="The viewing" />
+          <StepLabel step="2" title="The Viewing" />
 
           <Field label="Watched on">
             <View style={styles.dateRow}>
-              <View style={[styles.inputRow, styles.flex, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-                <Ionicons name="calendar-outline" size={17} color={colors.textDim} />
-                <TextInput
-                  value={dateText}
-                  onChangeText={setDateText}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.textDim}
-                  style={[styles.input, { color: colors.text }]}
-                  autoCapitalize="none"
-                />
-              </View>
+              <Pressable
+                onPress={() => setCalendarOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Watched on ${formatInputDate(dateText, dateStyle)}. Open calendar`}
+                style={({ pressed }) => [
+                  styles.inputRow,
+                  styles.flex,
+                  { backgroundColor: colors.background, borderColor: colors.border },
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <Ionicons name="calendar-outline" size={17} color={colors.coralInk} />
+                <Text style={[styles.input, styles.dateText, { color: colors.text }]} numberOfLines={1}>
+                  {formatInputDate(dateText, dateStyle)}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
+              </Pressable>
               <Pressable
                 onPress={() => setDateText(todayInputValue())}
-                style={[styles.todayBtn, { borderColor: colors.border }]}
+                style={[styles.todayBtn, { borderColor: `${colors.accent}66`, backgroundColor: colors.accentSoft }]}
                 accessibilityRole="button"
               >
-                <Text style={[styles.todayText, { color: colors.accent }]}>Today</Text>
+                <Text style={[styles.todayText, { color: colors.coralInk }]}>Today</Text>
               </Pressable>
             </View>
           </Field>
 
           <Field label="Theatre" optional>
-            <View style={[styles.inputRow, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-              <Ionicons name="location-outline" size={17} color={colors.textDim} />
+            <View style={[styles.inputRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Ionicons name="location-outline" size={17} color={colors.textMuted} />
               <TextInput
                 value={theatre}
                 onChangeText={setTheatre}
                 placeholder="Theatre or venue name"
-                placeholderTextColor={colors.textDim}
+                placeholderTextColor={colors.textMuted}
                 style={[styles.input, { color: colors.text }]}
               />
             </View>
           </Field>
 
         </Card>
-
-        {!loading && from !== 'diary' && recentEntries.length > 0 ? (
-          <View style={styles.recentSection}>
-            <View style={styles.recentHeader}>
-              <Text style={[styles.recentTitle, { color: colors.text }]}>Recent entries</Text>
-              <Text style={[styles.recentCount, { color: colors.textDim }]}>
-                {library.entries.length} total
-              </Text>
-            </View>
-            {recentEntries.map((entry) => (
-              <View
-                key={entry.id}
-                style={[styles.recentRow, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}
-              >
-                <Poster
-                  uri={resolvePoster(library, entry.movieId, entry.title)}
-                  title={entry.title}
-                  width={38}
-                  radius={RADIUS.sm}
-                />
-                <View style={styles.recentText}>
-                  <Text style={[styles.recentName, { color: colors.text }]} numberOfLines={1}>
-                    {entry.title}
-                  </Text>
-                  <Text style={[styles.recentMeta, { color: colors.textDim }]}>
-                    {formatDate(entry.watchedAt)}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => fillFromEntry(entry)}
-                  style={styles.iconBtn}
-                  accessibilityLabel="Edit entry"
-                  hitSlop={6}
-                >
-                  <Ionicons name="create-outline" size={18} color={colors.textMuted} />
-                </Pressable>
-                <Pressable
-                  onPress={() => handleDelete(entry)}
-                  style={styles.iconBtn}
-                  accessibilityLabel="Delete entry"
-                  hitSlop={6}
-                >
-                  <Ionicons name="trash-outline" size={18} color={colors.rose} />
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        ) : null}
 
         {loading ? (
           <View style={styles.loading}>
@@ -413,14 +484,27 @@ export default function LogScreen() {
         ) : null}
       </ScrollView>
 
+      <DatePickerSheet
+        visible={calendarOpen}
+        value={dateText}
+        onSelect={setDateText}
+        onClose={() => setCalendarOpen(false)}
+      />
+
       <View
         style={[
           styles.footer,
-          { backgroundColor: colors.background, borderTopColor: colors.borderSoft, paddingBottom: insets.bottom + SPACE.md },
+          {
+            backgroundColor: colors.background,
+            borderTopColor: colors.borderSoft,
+            // With the tab bar showing, keep Save clear of the raised Log button; while editing
+            // the bar is hidden, so only the safe area is needed.
+            paddingBottom: editEntryId ? insets.bottom + 14 : 34,
+          },
         ]}
       >
         {editingId ? (
-          <ActionButton label="Cancel" variant="outline" onPress={resetForm} style={styles.footerCancel} />
+          <ActionButton label="Cancel" variant="outline" onPress={handleCancel} style={styles.footerCancel} />
         ) : null}
         <ActionButton
           label={editingId ? 'Update viewing' : 'Save to diary'}
@@ -438,8 +522,8 @@ function StepLabel({ step, title }: { step: string; title: string }) {
   const { colors } = useTheme();
   return (
     <View style={styles.stepRow}>
-      <View style={[styles.stepBadge, { backgroundColor: colors.accentSoft }]}>
-        <Text style={[styles.stepNumber, { color: colors.accent }]}>{step}</Text>
+      <View style={[styles.stepBadge, { backgroundColor: colors.primary }]}>
+        <Text style={[styles.stepNumber, { color: colors.primaryText }]}>{step}</Text>
       </View>
       <Text style={[styles.stepTitle, { color: colors.text }]}>{title}</Text>
     </View>
@@ -458,9 +542,9 @@ function Field({
   const { colors } = useTheme();
   return (
     <View style={styles.field}>
-      <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
+      <Text style={[styles.fieldLabel, { color: colors.text }]}>
         {label}
-        {optional ? <Text style={{ color: colors.textDim }}>  (optional)</Text> : null}
+        {optional ? <Text style={{ color: colors.textMuted, fontWeight: '500' }}>  (optional)</Text> : null}
       </Text>
       {children}
     </View>
@@ -471,14 +555,55 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
+  editHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  editHeaderText: {
+    flex: 1,
+  },
+  back: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#142A45',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  deleteButton: {
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  titleBlock: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  title: {
+    ...TYPE.title,
+    fontSize: 24,
+    lineHeight: 29,
+  },
+  subtitle: {
+    ...TYPE.small,
+    marginTop: 2,
+  },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACE.sm,
-    marginHorizontal: SPACE.xl,
-    marginBottom: SPACE.md,
+    marginHorizontal: 12,
+    marginBottom: 10,
     paddingHorizontal: SPACE.md,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: RADIUS.md,
     borderWidth: StyleSheet.hairlineWidth,
   },
@@ -488,19 +613,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   section: {
-    marginHorizontal: SPACE.xl,
-    marginBottom: SPACE.md,
+    marginHorizontal: 12,
+    marginBottom: 10,
   },
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACE.sm,
-    marginBottom: SPACE.md,
+    marginBottom: 10,
   },
   stepBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -511,15 +636,16 @@ const styles = StyleSheet.create({
   stepTitle: {
     ...TYPE.heading,
     fontSize: 15,
+    fontWeight: '800',
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACE.sm,
     paddingHorizontal: SPACE.md,
-    minHeight: 48,
-    borderRadius: RADIUS.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 50,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1.5,
   },
   searchInput: {
     ...TYPE.body,
@@ -605,12 +731,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   field: {
-    marginBottom: SPACE.lg,
+    marginBottom: SPACE.md,
   },
   fieldLabel: {
     ...TYPE.caption,
-    fontWeight: '700',
-    marginBottom: SPACE.sm,
+    fontWeight: '800',
+    marginBottom: 6,
   },
   dateRow: {
     flexDirection: 'row',
@@ -620,13 +746,17 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  dateText: {
+    padding: 0,
+    fontWeight: '600',
+  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACE.sm,
     paddingHorizontal: SPACE.md,
-    minHeight: 48,
-    borderRadius: RADIUS.md,
+    height: 46,
+    borderRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
   },
   input: {
@@ -636,9 +766,9 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   todayBtn: {
-    minHeight: 48,
-    paddingHorizontal: SPACE.md,
-    borderRadius: RADIUS.md,
+    height: 46,
+    paddingHorizontal: SPACE.lg,
+    borderRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
@@ -647,49 +777,6 @@ const styles = StyleSheet.create({
     ...TYPE.small,
     fontWeight: '800',
   },
-  recentSection: {
-    paddingHorizontal: SPACE.xl,
-    marginTop: SPACE.md,
-  },
-  recentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: SPACE.sm,
-  },
-  recentTitle: {
-    ...TYPE.heading,
-    fontSize: 15,
-  },
-  recentCount: {
-    ...TYPE.caption,
-  },
-  recentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACE.sm,
-    padding: SPACE.sm,
-    borderRadius: RADIUS.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: SPACE.sm,
-  },
-  recentText: {
-    flex: 1,
-  },
-  recentName: {
-    ...TYPE.small,
-    fontWeight: '700',
-  },
-  recentMeta: {
-    ...TYPE.caption,
-    marginTop: 2,
-  },
-  iconBtn: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   loading: {
     paddingTop: SPACE.xl,
     alignItems: 'center',
@@ -697,8 +784,8 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     gap: SPACE.sm,
-    paddingHorizontal: SPACE.xl,
-    paddingTop: SPACE.md,
+    paddingHorizontal: 12,
+    paddingTop: SPACE.sm + 2,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   footerCancel: {

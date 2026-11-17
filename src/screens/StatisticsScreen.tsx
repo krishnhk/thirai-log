@@ -2,23 +2,52 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACE, RADIUS, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { resolvePoster, type ViewingEntry } from '../lib/library';
 import { formatDate, monthShort, MONTH_NAMES, toDate } from '../lib/format';
-import { ScreenHeader } from '../components/ScreenHeader';
+import { AppHeader } from '../components/AppHeader';
 import { Card } from '../components/Card';
-import { StatCard } from '../components/StatCard';
 import { EmptyState } from '../components/EmptyState';
 import { MonthChart } from '../components/MonthChart';
 import { BarList } from '../components/BarList';
 import { Poster } from '../components/Poster';
 import { RatingStars } from '../components/RatingStars';
 
+function MiniStat({
+  label,
+  value,
+  icon,
+  tint,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  tint: string;
+  hint: string;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.mini, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
+      <View style={[styles.miniIcon, { backgroundColor: `${tint}22` }]}>
+        <Ionicons name={icon} size={16} color={tint} />
+      </View>
+      <View style={styles.miniText}>
+        <Text style={[styles.miniValue, { color: colors.text }]} numberOfLines={1}>
+          {value}
+        </Text>
+        <Text style={[styles.miniLabel, { color: colors.text }]}>{label}</Text>
+        <Text style={[styles.miniHint, { color: colors.textMuted }]} numberOfLines={1}>
+          {hint}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function StatisticsScreen() {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const { library, loading } = useLibrary();
   const year = new Date().getFullYear();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -51,26 +80,6 @@ export default function StatisticsScreen() {
       }
     });
 
-    // Genres and languages come from the film catalog (filled when a film is chosen).
-    const movieMap = new Map(library.movies.map((movie) => [movie.id, movie]));
-    const genreCounts: Record<string, number> = {};
-    const languageCounts: Record<string, number> = {};
-
-    uniqueMap.forEach((entry, movieId) => {
-      const movie =
-        movieMap.get(movieId) ??
-        library.movies.find((item) => item.title.toLowerCase() === entry.title.toLowerCase());
-
-      (movie?.genres ?? []).forEach((genre) => {
-        genreCounts[genre] = (genreCounts[genre] ?? 0) + 1;
-      });
-
-      const language = movie?.languages?.[0];
-      if (language) {
-        languageCounts[language] = (languageCounts[language] ?? 0) + 1;
-      }
-    });
-
     const topRated: ViewingEntry[] = [];
     const seenTop = new Set<string>();
     [...entries]
@@ -89,12 +98,6 @@ export default function StatisticsScreen() {
       bucketTotal,
       bucketWatched,
       monthlyCounts,
-      genres: Object.entries(genreCounts)
-        .map(([label, value]) => ({ label, value }))
-        .sort((a, b) => b.value - a.value),
-      languages: Object.entries(languageCounts)
-        .map(([label, value]) => ({ label, value }))
-        .sort((a, b) => b.value - a.value),
       yearOverYear: Object.entries(yearlyCounts)
         .map(([label, value]) => ({ label, value }))
         .sort((a, b) => Number(a.label) - Number(b.label)),
@@ -112,13 +115,13 @@ export default function StatisticsScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingBottom: insets.bottom + SPACE.xxl,
+          paddingBottom: 36,
           width: '100%',
           maxWidth: 720,
           alignSelf: 'center',
         }}
       >
-        <ScreenHeader eyebrow="Insights" title="Statistics" subtitle="The shape of your cinema habit." />
+        <AppHeader />
 
         {loading ? (
           <View style={styles.loading}>
@@ -138,22 +141,22 @@ export default function StatisticsScreen() {
           <>
             <View style={styles.statGrid}>
               <View style={styles.statRow}>
-                <StatCard label="Films logged" value={stats.films} icon="film-outline" tint={colors.accent} hint="all time" />
-                <StatCard label="Theatre visits" value={stats.visits} icon="ticket-outline" tint={colors.teal} hint="all time" />
+                <MiniStat label="Films logged" value={stats.films} icon="film-outline" tint={colors.accent} hint="all time" />
+                <MiniStat label="Theatre visits" value={stats.visits} icon="ticket-outline" tint={colors.teal} hint="all time" />
               </View>
               <View style={styles.statRow}>
-                <StatCard
+                <MiniStat
                   label="Average rating"
                   value={stats.average > 0 ? stats.average.toFixed(1) : '—'}
                   icon="star-outline"
                   tint={colors.star}
                   hint={stats.average > 0 ? 'out of 5' : 'not rated'}
                 />
-                <StatCard
+                <MiniStat
                   label="Bucket list"
                   value={`${completion}%`}
                   icon="checkmark-done-outline"
-                  tint={colors.gold}
+                  tint={colors.primary}
                   hint={`${stats.bucketWatched}/${stats.bucketTotal} this year`}
                 />
               </View>
@@ -165,6 +168,7 @@ export default function StatisticsScreen() {
                 <Text style={[styles.cardMeta, { color: colors.textDim }]}>{year}</Text>
               </View>
               <MonthChart
+                compact
                 counts={stats.monthlyCounts}
                 labels={Array.from({ length: 12 }, (_, index) => monthShort(index))}
                 selectedIndex={selectedMonth}
@@ -187,39 +191,10 @@ export default function StatisticsScreen() {
 
             <Card style={styles.section}>
               <View style={styles.cardHeader}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Genres</Text>
-                <Ionicons name="pricetags-outline" size={17} color={colors.rose} />
-              </View>
-              {stats.genres.length > 0 ? (
-                <BarList items={stats.genres} color={colors.rose} showPercent />
-              ) : (
-                <Text style={[styles.mutedNote, { color: colors.textMuted }]}>
-                  Genre insights appear once your logged films carry metadata. Keep logging from your
-                  saved library and this will fill in.
-                </Text>
-              )}
-            </Card>
-
-            <Card style={styles.section}>
-              <View style={styles.cardHeader}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Languages</Text>
-                <Ionicons name="language-outline" size={17} color={colors.blue} />
-              </View>
-              {stats.languages.length > 0 ? (
-                <BarList items={stats.languages} color={colors.blue} showPercent />
-              ) : (
-                <Text style={[styles.mutedNote, { color: colors.textMuted }]}>
-                  Language insights appear once your logged films carry metadata.
-                </Text>
-              )}
-            </Card>
-
-            <Card style={styles.section}>
-              <View style={styles.cardHeader}>
                 <Text style={[styles.cardTitle, { color: colors.text }]}>Year by year</Text>
                 <Text style={[styles.cardMeta, { color: colors.textDim }]}>visits</Text>
               </View>
-              <BarList items={stats.yearOverYear} color={colors.teal} unit=" visits" />
+              <BarList items={stats.yearOverYear} color={colors.primary} unit=" visits" />
             </Card>
 
             {stats.topRated.length > 0 ? (
@@ -241,14 +216,14 @@ export default function StatisticsScreen() {
                     <Poster
                       uri={resolvePoster(library, entry.movieId, entry.title)}
                       title={entry.title}
-                      width={42}
-                      radius={RADIUS.sm}
+                      width={36}
+                      radius={RADIUS.md}
                     />
                     <View style={styles.favText}>
                       <Text style={[styles.favTitle, { color: colors.text }]} numberOfLines={1}>
                         {entry.title}
                       </Text>
-                      <Text style={[styles.favMeta, { color: colors.textDim }]}>
+                      <Text style={[styles.favMeta, { color: colors.textMuted }]}>
                         {formatDate(entry.watchedAt)}
                       </Text>
                     </View>
@@ -273,38 +248,82 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyWrap: {
-    paddingHorizontal: SPACE.xl,
+    paddingHorizontal: 12,
   },
   statGrid: {
-    paddingHorizontal: SPACE.xl,
-    gap: SPACE.sm,
-    marginBottom: SPACE.md,
+    paddingHorizontal: 12,
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 10,
   },
   statRow: {
     flexDirection: 'row',
-    gap: SPACE.sm,
+    gap: 8,
+  },
+  mini: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#142A45',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
+  miniIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  miniValue: {
+    ...TYPE.number,
+    fontSize: 24,
+    lineHeight: 27,
+    letterSpacing: -0.6,
+  },
+  miniLabel: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '700',
+  },
+  miniHint: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '500',
   },
   section: {
-    marginHorizontal: SPACE.xl,
-    marginBottom: SPACE.md,
+    marginHorizontal: 12,
+    marginBottom: 10,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: SPACE.md,
+    marginBottom: SPACE.sm,
   },
   cardTitle: {
     ...TYPE.heading,
     fontSize: 15,
+    fontWeight: '800',
   },
   cardMeta: {
     ...TYPE.eyebrow,
     fontSize: 10,
   },
   detailRow: {
-    marginTop: SPACE.md,
-    paddingTop: SPACE.md,
+    marginTop: SPACE.sm,
+    paddingTop: SPACE.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   detailText: {
@@ -314,18 +333,14 @@ const styles = StyleSheet.create({
     ...TYPE.heading,
     fontVariant: ['tabular-nums'],
   },
-  mutedNote: {
-    ...TYPE.small,
-    lineHeight: 19,
-  },
   favRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACE.md,
-    padding: SPACE.md,
-    borderRadius: RADIUS.lg,
+    gap: 10,
+    padding: 8,
+    borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: SPACE.sm,
+    marginBottom: 6,
   },
   favText: {
     flex: 1,

@@ -11,6 +11,16 @@ import { Card } from '../components/Card';
 import { PosterPicker } from '../components/PosterPicker';
 import { ActionButton } from '../components/ActionButton';
 
+function FieldError({ text }: { text: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.errorRow} accessibilityRole="alert">
+      <Ionicons name="alert-circle" size={13} color={colors.rose} />
+      <Text style={[styles.errorText, { color: colors.rose }]}>{text}</Text>
+    </View>
+  );
+}
+
 /**
  * Adds a film to the app's database by hand, or edits one when an `id` is passed.
  * Search only shows films saved here.
@@ -26,6 +36,7 @@ export default function AddMovieScreen() {
   const [poster, setPoster] = useState<string | undefined>(undefined);
   const [initialPoster, setInitialPoster] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [draftId] = useState(() => `draft-${Date.now()}`);
 
   // Edit mode: fill the form from the film being edited.
@@ -47,33 +58,35 @@ export default function AddMovieScreen() {
     };
   }, [editId]);
 
-  const save = async () => {
-    const name = title.trim();
-    if (!name || saving) return;
+  const currentYear = new Date().getFullYear();
+  const maxYear = currentYear + 1;
+  const yearText = year.trim();
+  const yearNumber = Number(yearText);
+  const titleError = title.trim() ? null : 'Enter the film title.';
+  const yearError = !yearText
+    ? 'Enter the release year.'
+    : !/^\d{4}$/.test(yearText) || yearNumber < 1888 || yearNumber > maxYear
+      ? `Enter a valid year between 1888 and ${maxYear}.`
+      : null;
 
-    const yearText = year.trim();
-    const yearNumber = yearText ? Number(yearText) : undefined;
-    const currentYear = new Date().getFullYear();
-    if (
-      yearNumber !== undefined &&
-      (!Number.isInteger(yearNumber) || yearNumber < 1888 || yearNumber > currentYear + 1)
-    ) {
-      notify('Check the year', `Enter a year between 1888 and ${currentYear + 1}.`);
-      return;
-    }
+  const save = async () => {
+    if (saving) return;
+    setSubmitted(true);
+    if (titleError || yearError) return;
+    const name = title.trim();
 
     setSaving(true);
     try {
       const library = await loadLibrary();
       const key = name.toLowerCase();
-      const yearKey = yearNumber ? String(yearNumber) : '';
+      const yearKey = String(yearNumber);
       // Same title is fine in a different year, so a film counts as a duplicate only when both match.
       const duplicate = searchableFilms(library).some(
         (film) =>
           film.id !== editId && film.title.trim().toLowerCase() === key && filmYear(film) === yearKey
       );
       if (duplicate) {
-        notify('Already added', `“${name}”${yearNumber ? ` (${yearNumber})` : ''} is already in your films.`);
+        notify('Already added', `“${name}” (${yearNumber}) is already in your films.`);
         return;
       }
 
@@ -87,7 +100,7 @@ export default function AddMovieScreen() {
         await upsertMovie({
           id: `manual-${key.replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`,
           title: name,
-          releaseDate: yearNumber ? `${yearNumber}-06-15` : undefined,
+          releaseDate: `${yearNumber}-06-15`,
           posterPath: poster,
         });
       }
@@ -101,21 +114,26 @@ export default function AddMovieScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + SPACE.md }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Pressable
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Back"
-          style={[styles.back, { backgroundColor: colors.surfaceAlt, borderColor: colors.borderSoft }]}
+          hitSlop={4}
+          style={({ pressed }) => [
+            styles.back,
+            { backgroundColor: colors.surface, borderColor: colors.borderSoft },
+            pressed && { opacity: 0.7 },
+          ]}
         >
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <Ionicons name="chevron-back" size={20} color={colors.coralInk} />
         </Pressable>
-        <Text style={[styles.title, { color: colors.text }]}>{editId ? 'Edit film' : 'Add a film'}</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{editId ? 'Edit Film' : 'Add a Film'}</Text>
       </View>
 
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: insets.bottom + SPACE.xxl }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + SPACE.xl }}
       >
         <Card style={styles.card}>
           <View style={styles.topRow}>
@@ -123,44 +141,75 @@ export default function AddMovieScreen() {
               uri={poster}
               title={title || 'New film'}
               movieId={draftId}
-              width={104}
+              width={96}
               onChange={setPoster}
+              uploadPlaceholder
             />
             <View style={styles.fields}>
-              <Text style={[styles.label, { color: colors.textMuted }]}>Title</Text>
-              <TextInput
-                value={title}
-                onChangeText={setTitle}
-                placeholder="Film title"
-                placeholderTextColor={colors.textDim}
-                autoFocus={!params.title && !editId}
-                style={[
-                  styles.input,
-                  INPUT_RESET,
-                  { color: colors.text, backgroundColor: colors.surfaceAlt, borderColor: colors.border },
-                ]}
-              />
+              <View>
+                <Text style={[styles.label, { color: colors.text }]}>
+                  Title<Text style={{ color: colors.rose }}> *</Text>
+                </Text>
+                <TextInput
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder="Film title"
+                  placeholderTextColor={colors.textMuted}
+                  autoFocus={!params.title && !editId}
+                  accessibilityLabel="Title, required"
+                  multiline={false}
+                  style={[
+                    styles.input,
+                    INPUT_RESET,
+                    {
+                      color: colors.text,
+                      backgroundColor: colors.background,
+                      borderColor: submitted && titleError ? colors.rose : colors.border,
+                    },
+                  ]}
+                />
+                {submitted && titleError ? <FieldError text={titleError} /> : null}
+              </View>
 
-              <Text style={[styles.label, { color: colors.textMuted }]}>Year</Text>
-              <TextInput
-                value={year}
-                onChangeText={setYear}
-                placeholder="Optional"
-                placeholderTextColor={colors.textDim}
-                keyboardType="number-pad"
-                maxLength={4}
-                style={[
-                  styles.input,
-                  INPUT_RESET,
-                  { color: colors.text, backgroundColor: colors.surfaceAlt, borderColor: colors.border },
-                ]}
-              />
+              <View>
+                <Text style={[styles.label, { color: colors.text }]}>
+                  Year<Text style={{ color: colors.rose }}> *</Text>
+                </Text>
+                <TextInput
+                  value={year}
+                  onChangeText={setYear}
+                  placeholder="e.g. 2024"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  accessibilityLabel="Release year, required"
+                  style={[
+                    styles.input,
+                    INPUT_RESET,
+                    {
+                      color: colors.text,
+                      backgroundColor: colors.background,
+                      borderColor: submitted && yearError ? colors.rose : colors.border,
+                    },
+                  ]}
+                />
+                {submitted && yearError ? <FieldError text={yearError} /> : null}
+              </View>
             </View>
           </View>
+          <Text style={[styles.required, { color: colors.textMuted }]}>
+            <Text style={{ color: colors.rose }}>*</Text> Required. The poster is optional.
+          </Text>
         </Card>
 
         <View style={styles.actions}>
-          <ActionButton label={editId ? 'Save changes' : 'Save'} icon="checkmark" onPress={save} loading={saving} disabled={!title.trim()} fullWidth />
+          <ActionButton
+            label={editId ? 'Save changes' : 'Save film'}
+            icon="checkmark"
+            onPress={save}
+            loading={saving}
+            fullWidth
+          />
         </View>
       </ScrollView>
     </View>
@@ -174,9 +223,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACE.md,
-    paddingHorizontal: SPACE.xl,
-    paddingBottom: SPACE.lg,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
   back: {
     width: 40,
@@ -185,36 +234,59 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#142A45',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   title: {
-    ...TYPE.heading,
-    fontSize: 20,
+    ...TYPE.title,
+    fontSize: 24,
+    lineHeight: 28,
   },
   card: {
-    marginHorizontal: SPACE.xl,
+    marginHorizontal: 12,
   },
   topRow: {
     flexDirection: 'row',
-    gap: SPACE.lg,
+    gap: 14,
   },
   fields: {
     flex: 1,
-    gap: SPACE.sm,
+    minWidth: 0,
+    gap: 10,
   },
   label: {
     ...TYPE.caption,
-    fontWeight: '700',
-    marginTop: SPACE.xs,
+    fontWeight: '800',
+    marginBottom: 5,
   },
   input: {
     ...TYPE.body,
-    minHeight: 46,
+    height: 46,
     paddingHorizontal: SPACE.md,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
   },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 4,
+    marginTop: 5,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  required: {
+    ...TYPE.caption,
+    marginTop: 12,
+  },
   actions: {
-    paddingHorizontal: SPACE.xl,
-    marginTop: SPACE.xl,
+    paddingHorizontal: 12,
+    marginTop: 12,
   },
 });

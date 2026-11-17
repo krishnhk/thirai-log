@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INPUT_RESET, RADIUS, SPACE, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { filmYear, resolvePoster, searchableFilms } from '../lib/library';
-import { ScreenHeader } from '../components/ScreenHeader';
 import { Poster } from '../components/Poster';
 import { EmptyState } from '../components/EmptyState';
 import { ActionButton } from '../components/ActionButton';
@@ -34,35 +33,37 @@ export default function FilmsScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingBottom: insets.bottom + SPACE.xxl,
+          paddingBottom: insets.bottom + SPACE.xl,
           width: '100%',
           maxWidth: 720,
           alignSelf: 'center',
         }}
       >
-        <ScreenHeader
-          eyebrow="Database"
-          title="Films"
-          right={
-            <Pressable
-              onPress={() => router.back()}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              style={[styles.back, { backgroundColor: colors.surfaceAlt, borderColor: colors.borderSoft }]}
-            >
-              <Ionicons name="chevron-back" size={20} color={colors.text} />
-            </Pressable>
-          }
-        />
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={4}
+            style={({ pressed }) => [
+              styles.back,
+              { backgroundColor: colors.surface, borderColor: colors.borderSoft },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.coralInk} />
+          </Pressable>
+          <Text style={[styles.title, { color: colors.text }]}>Films</Text>
+        </View>
 
-        <View style={styles.pad}>
-          <View style={[styles.searchRow, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-            <Ionicons name="search" size={17} color={colors.textDim} />
+        <View style={styles.toolbar}>
+          <View style={[styles.searchRow, { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft }]}>
+            <Ionicons name="search" size={16} color={colors.textMuted} />
             <TextInput
               value={query}
               onChangeText={setQuery}
               placeholder="Search films"
-              placeholderTextColor={colors.textDim}
+              placeholderTextColor={colors.textMuted}
               style={[styles.searchInput, INPUT_RESET, { color: colors.text }]}
               autoCorrect={false}
             />
@@ -70,9 +71,8 @@ export default function FilmsScreen() {
           <ActionButton
             label="Add a film"
             icon="add"
-            variant="outline"
+            compact
             onPress={() => router.push('/add-movie')}
-            fullWidth
             style={styles.addButton}
           />
         </View>
@@ -104,16 +104,18 @@ export default function FilmsScreen() {
                   <Poster
                     uri={resolvePoster(library, film.id, film.title) ?? film.posterPath}
                     title={film.title}
-                    width={44}
-                    radius={RADIUS.sm}
+                    width={40}
+                    radius={RADIUS.md}
                   />
                   <View style={styles.rowText}>
-                    <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
+                    <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={3}>
                       {film.title}
                     </Text>
-                    {year ? <Text style={[styles.rowMeta, { color: colors.textDim }]}>{year}</Text> : null}
+                    {year ? <Text style={[styles.rowMeta, { color: colors.textMuted }]}>{year}</Text> : null}
                   </View>
-                  <Ionicons name="create-outline" size={18} color={colors.textDim} />
+                  <View style={[styles.editBadge, { backgroundColor: colors.surfaceAlt }]}>
+                    <Ionicons name="pencil" size={14} color={colors.coralInk} />
+                  </View>
                 </Pressable>
               );
             })}
@@ -129,7 +131,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pad: {
-    paddingHorizontal: SPACE.xl,
+    paddingHorizontal: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  title: {
+    ...TYPE.title,
+    fontSize: 24,
+    lineHeight: 28,
   },
   back: {
     width: 40,
@@ -138,14 +152,28 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#142A45',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    marginBottom: 10,
   },
   searchRow: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACE.sm,
     paddingHorizontal: SPACE.md,
-    minHeight: 48,
-    borderRadius: RADIUS.md,
+    height: 42,
+    borderRadius: RADIUS.pill,
     borderWidth: StyleSheet.hairlineWidth,
   },
   searchInput: {
@@ -154,8 +182,8 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   addButton: {
-    marginTop: SPACE.sm,
-    marginBottom: SPACE.lg,
+    minHeight: 42,
+    paddingHorizontal: 14,
   },
   loading: {
     paddingTop: SPACE.xxl,
@@ -164,21 +192,38 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACE.md,
-    padding: SPACE.sm,
-    borderRadius: RADIUS.lg,
+    gap: 10,
+    padding: 8,
+    borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: SPACE.sm,
+    marginBottom: 6,
+    shadowColor: '#142A45',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   rowText: {
     flex: 1,
+    minWidth: 0,
   },
   rowTitle: {
-    ...TYPE.body,
-    fontWeight: '700',
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '800',
+    letterSpacing: -0.2,
   },
   rowMeta: {
-    ...TYPE.caption,
+    fontSize: 12.5,
+    lineHeight: 16,
+    fontWeight: '600',
     marginTop: 2,
+  },
+  editBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

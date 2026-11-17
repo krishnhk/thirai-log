@@ -78,6 +78,25 @@ export function parseInputDate(value: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+export type DateStyle = 'short' | 'medium' | 'long';
+
+/**
+ * Formats a `YYYY-MM-DD` input date for display using the Settings date style:
+ * short "17/11/2026", medium "17 Nov 2026", long "17 November 2026".
+ * Returns the text unchanged when it is not a valid date.
+ */
+export function formatInputDate(value: string, style: DateStyle = 'medium'): string {
+  const date = parseInputDate(value);
+  if (!date) return value;
+  const day = date.getDate();
+  const month = date.getMonth();
+  const year = date.getFullYear();
+  if (style === 'short') {
+    return `${`${day}`.padStart(2, '0')}/${`${month + 1}`.padStart(2, '0')}/${year}`;
+  }
+  return `${day} ${style === 'long' ? MONTH_NAMES[month] : MONTHS_SHORT[month]} ${year}`;
+}
+
 export function formatRating(rating?: number): string {
   if (rating === undefined || rating === null) return '—';
   return rating.toFixed(1);

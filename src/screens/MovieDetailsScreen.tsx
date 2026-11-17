@@ -41,11 +41,6 @@ export default function MovieDetailsScreen({ movieId }: MovieDetailsProps) {
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<EntryStatus>('planned');
 
-  useEffect(() => {
-    loadMovie();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [movieId]);
-
   const loadMovie = async () => {
     try {
       const cached = await Movies.getCachedMovies();
@@ -67,6 +62,12 @@ export default function MovieDetailsScreen({ movieId }: MovieDetailsProps) {
       setLoaded(true);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadMovie();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movieId]);
 
   const saveViewing = async () => {
     try {
@@ -341,7 +342,7 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: 'row',
     gap: SPACE.lg,
-    paddingHorizontal: SPACE.xl,
+    paddingHorizontal: SPACE.lg,
     marginTop: -90,
   },
   heroInfo: {
@@ -373,14 +374,14 @@ const styles = StyleSheet.create({
   tagline: {
     ...TYPE.small,
     fontStyle: 'italic',
-    paddingHorizontal: SPACE.xl,
+    paddingHorizontal: SPACE.lg,
     marginTop: SPACE.lg,
   },
   genreRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACE.sm,
-    paddingHorizontal: SPACE.xl,
+    paddingHorizontal: SPACE.lg,
     marginTop: SPACE.md,
   },
   genreTag: {
@@ -394,7 +395,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   section: {
-    marginHorizontal: SPACE.xl,
+    marginHorizontal: SPACE.lg,
     marginTop: SPACE.lg,
   },
   cardTitle: {
@@ -441,8 +442,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   actions: {
-    paddingHorizontal: SPACE.xl,
-    marginTop: SPACE.xl,
+    paddingHorizontal: SPACE.lg,
+    marginTop: SPACE.lg,
     gap: SPACE.sm,
   },
 });

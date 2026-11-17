@@ -6,9 +6,7 @@ import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DATA_FILES, readJson, writeJson, type DataFile } from '../lib/storage';
-import { SPACE, RADIUS, TYPE, useTheme } from '../theme';
-import { ScreenHeader } from '../components/ScreenHeader';
-import { Chip } from '../components/Chip';
+import { RADIUS, SPACE, TYPE, useTheme } from '../theme';
 import { ActionButton } from '../components/ActionButton';
 import { Card } from '../components/Card';
 import { notify } from '../lib/ui';
@@ -99,85 +97,119 @@ export default function SettingsScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingBottom: insets.bottom + SPACE.xxxl,
+          paddingBottom: insets.bottom + SPACE.xxl,
           width: '100%',
           maxWidth: 720,
           alignSelf: 'center',
         }}
       >
-        <ScreenHeader
-          eyebrow="Preferences"
-          title="Settings"
-          subtitle="Make ThiraiLog feel like yours."
-          right={<BackButton />}
-        />
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <BackButton />
+          <View style={styles.headerText}>
+            <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              Make Thirailog feel like yours.
+            </Text>
+          </View>
+        </View>
 
         <Group title="Appearance">
-          <Row icon={mode === 'dark' ? 'moon-outline' : 'sunny-outline'} iconColor={colors.accent} label="Dark theme">
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <IconBadge
+                icon={mode === 'dark' ? 'moon' : 'sunny'}
+                color={colors.coralInk}
+                bg={colors.coralSoft}
+              />
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Dark theme</Text>
+            </View>
             <Switch
               value={mode === 'dark'}
               onValueChange={toggle}
-              trackColor={{ false: colors.border, true: colors.accent }}
-              thumbColor={colors.onAccent}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#FFFFFF"
               accessibilityLabel="Dark theme"
             />
-          </Row>
+          </View>
         </Group>
 
-        <Group title="Dates and time" footnote="Saved with your backup. Display formatting is not applied yet.">
-          <Text style={[styles.subLabel, { color: colors.textMuted }]}>Date style</Text>
-          <View style={styles.chips}>
-            {(['short', 'medium', 'long'] as const).map((value) => (
-              <Chip
-                key={value}
-                label={value.charAt(0).toUpperCase() + value.slice(1)}
-                active={settings.dateFormat === value}
-                onPress={() => persist({ ...settings, dateFormat: value })}
-              />
-            ))}
+        <Group title="Dates and time" footnote="Date style is used for the date shown when logging a film. Both settings are saved with your backup.">
+          <View style={styles.block}>
+            <Text style={[styles.subLabel, { color: colors.text }]}>Date style</Text>
+            <Segmented
+              options={[
+                { value: 'short', label: 'Short' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'long', label: 'Long' },
+              ]}
+              value={settings.dateFormat}
+              onChange={(value) => persist({ ...settings, dateFormat: value })}
+            />
           </View>
-          <Text style={[styles.subLabel, { color: colors.textMuted }]}>Clock</Text>
-          <View style={styles.chips}>
-            {(['12h', '24h'] as const).map((value) => (
-              <Chip
-                key={value}
-                label={value === '12h' ? '12-hour' : '24-hour'}
-                active={settings.timeFormat === value}
-                onPress={() => persist({ ...settings, timeFormat: value })}
-              />
-            ))}
+          <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
+          <View style={styles.block}>
+            <Text style={[styles.subLabel, { color: colors.text }]}>Clock</Text>
+            <Segmented
+              options={[
+                { value: '12h', label: '12-hour' },
+                { value: '24h', label: '24-hour' },
+              ]}
+              value={settings.timeFormat}
+              onChange={(value) => persist({ ...settings, timeFormat: value })}
+            />
           </View>
         </Group>
 
         <Group title="Your library">
-          <Pressable onPress={() => router.push('/films')} accessibilityRole="button">
-            <Row icon="film-outline" iconColor={colors.accent} label="Film database">
-              <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
-            </Row>
+          <Pressable
+            onPress={() => router.push('/films')}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
+          >
+            <View style={styles.rowLeft}>
+              <IconBadge icon="film" color={colors.coralInk} bg={colors.coralSoft} />
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Film database</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.coralInk} />
           </Pressable>
-          <Row icon="albums-outline" iconColor={colors.teal} label="Viewing records">
-            <Text style={[styles.value, { color: colors.text }]}>{library.entries.length}</Text>
-          </Row>
-          <Row icon="bookmark-outline" iconColor={colors.gold} label="Watchlist films">
-            <Text style={[styles.value, { color: colors.text }]}>
+          <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <IconBadge icon="albums" color={colors.sageInk} bg={colors.sageSoft} />
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Viewing records</Text>
+            </View>
+            <Text style={[styles.value, { color: colors.coralInk }]}>{library.entries.length}</Text>
+          </View>
+          <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <IconBadge icon="bookmark" color={colors.coralInk} bg={colors.goldSoft} />
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Watchlist films</Text>
+            </View>
+            <Text style={[styles.value, { color: colors.coralInk }]}>
               {library.annual.reduce((sum, list) => sum + list.movies.length, 0)}
             </Text>
-          </Row>
+          </View>
         </Group>
 
-        <Group title="Backup" footnote="Your diary lives only on this device. Export a JSON backup any time and save it to Files, Drive or anywhere else.">
+        <Group title="Backup">
+          <Text style={[styles.backupText, { color: colors.textMuted }]}>
+            Your diary lives only on this device. Export a JSON backup any time and save it to Files,
+            Drive or anywhere else.
+          </Text>
           <ActionButton
             label="Export backup"
             icon="share-outline"
-            variant="outline"
             onPress={exportData}
             fullWidth
+            compact
+            style={styles.exportButton}
           />
         </Group>
 
         <View style={[styles.privacy, { borderColor: colors.borderSoft }]}>
-          <Ionicons name="lock-closed-outline" size={16} color={colors.textDim} />
-          <Text style={[styles.privacyText, { color: colors.textDim }]}>
+          <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} />
+          <Text style={[styles.privacyText, { color: colors.textMuted }]}>
             Private by design. No accounts, no social feeds, no tracking. Every memory stays with you.
           </Text>
         </View>
@@ -193,9 +225,14 @@ function BackButton() {
       onPress={() => router.back()}
       accessibilityRole="button"
       accessibilityLabel="Back"
-      style={[styles.back, { backgroundColor: colors.surfaceAlt, borderColor: colors.borderSoft }]}
+      hitSlop={4}
+      style={({ pressed }) => [
+        styles.back,
+        { backgroundColor: colors.surface, borderColor: colors.borderSoft },
+        pressed && { opacity: 0.7 },
+      ]}
     >
-      <Ionicons name="chevron-back" size={20} color={colors.text} />
+      <Ionicons name="chevron-back" size={20} color={colors.coralInk} />
     </Pressable>
   );
 }
@@ -212,34 +249,68 @@ function Group({
   const { colors } = useTheme();
   return (
     <View style={styles.group}>
-      <Text style={[styles.groupTitle, { color: colors.textDim }]}>{title}</Text>
-      <Card style={styles.groupBody} padded>
+      <Text style={[styles.groupTitle, { color: colors.coralInk }]}>{title}</Text>
+      <Card style={styles.groupBody} padded={false}>
         {children}
       </Card>
-      {footnote ? <Text style={[styles.footnote, { color: colors.textDim }]}>{footnote}</Text> : null}
+      {footnote ? <Text style={[styles.footnote, { color: colors.textMuted }]}>{footnote}</Text> : null}
     </View>
   );
 }
 
-function Row({
+function IconBadge({
   icon,
-  iconColor,
-  label,
-  children,
+  color,
+  bg,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
-  iconColor: string;
-  label: string;
-  children: React.ReactNode;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <View style={[styles.iconBadge, { backgroundColor: bg }]}>
+      <Ionicons name={icon} size={16} color={color} />
+    </View>
+  );
+}
+
+function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
 }) {
   const { colors } = useTheme();
   return (
-    <View style={styles.row}>
-      <View style={styles.rowLeft}>
-        <Ionicons name={icon} size={19} color={iconColor} />
-        <Text style={[styles.rowLabel, { color: colors.text }]}>{label}</Text>
-      </View>
-      {children}
+    <View style={[styles.segTrack, { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft }]}>
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            onPress={() => onChange(option.value)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            style={[
+              styles.segItem,
+              active && { backgroundColor: colors.coralSoft, borderColor: colors.accent },
+            ]}
+          >
+            <Text
+              style={[
+                styles.segLabel,
+                { color: active ? colors.coralInk : colors.textMuted },
+              ]}
+              numberOfLines={1}
+            >
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -248,6 +319,25 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
+  headerText: {
+    flex: 1,
+  },
+  title: {
+    ...TYPE.title,
+    fontSize: 24,
+    lineHeight: 28,
+  },
+  subtitle: {
+    ...TYPE.small,
+    marginTop: 1,
+  },
   back: {
     width: 40,
     height: 40,
@@ -255,61 +345,105 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#142A45',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   group: {
-    paddingHorizontal: SPACE.xl,
-    marginBottom: SPACE.xl,
+    paddingHorizontal: 12,
+    marginBottom: 14,
   },
   groupTitle: {
     ...TYPE.eyebrow,
-    fontSize: 10.5,
-    marginBottom: SPACE.sm,
+    marginBottom: 6,
+    marginLeft: 4,
   },
   groupBody: {
-    gap: SPACE.md,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
   footnote: {
     ...TYPE.caption,
-    lineHeight: 17,
-    marginTop: SPACE.sm,
-    paddingHorizontal: SPACE.xs,
+    lineHeight: 16,
+    marginTop: 6,
+    paddingHorizontal: 4,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: SPACE.md,
-    minHeight: 44,
+    minHeight: 48,
   },
   rowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACE.md,
+    gap: 10,
     flexShrink: 1,
+  },
+  iconBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rowLabel: {
     ...TYPE.body,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   value: {
     ...TYPE.body,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
+  divider: {
+    height: StyleSheet.hairlineWidth * 2,
+  },
+  block: {
+    paddingVertical: 10,
+    gap: 8,
+  },
   subLabel: {
     ...TYPE.caption,
+    fontWeight: '800',
+  },
+  segTrack: {
+    flexDirection: 'row',
+    padding: 3,
+    gap: 3,
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  segItem: {
+    flex: 1,
+    height: 34,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segLabel: {
+    fontSize: 13,
     fontWeight: '700',
   },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACE.sm,
+  backupText: {
+    ...TYPE.small,
+    paddingTop: 10,
+  },
+  exportButton: {
+    marginTop: 10,
+    marginBottom: 10,
+    minHeight: 44,
   },
   privacy: {
     flexDirection: 'row',
     gap: SPACE.sm,
-    marginHorizontal: SPACE.xl,
-    paddingTop: SPACE.lg,
+    marginHorizontal: 16,
+    paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   privacyText: {

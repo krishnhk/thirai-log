@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -28,8 +28,7 @@ import {
 import type { Movie } from '../api/movies';
 import { yearOf } from '../lib/format';
 import { confirmAction } from '../lib/ui';
-import { ScreenHeader } from '../components/ScreenHeader';
-import { Card } from '../components/Card';
+import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Poster } from '../components/Poster';
 import { PosterPicker } from '../components/PosterPicker';
@@ -38,7 +37,6 @@ import { StatusPill } from '../components/StatusPill';
 import { ActionButton } from '../components/ActionButton';
 
 const STATUSES: EntryStatus[] = ['planned', 'watched', 'skipped', 'postponed'];
-const MANUAL_DRAFT_ID = 'manual-draft';
 
 interface DetailState {
   listYear: number;
@@ -54,7 +52,6 @@ export default function WatchlistScreen() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [manualPoster, setManualPoster] = useState<string | undefined>(undefined);
   const [detail, setDetail] = useState<DetailState | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -65,20 +62,18 @@ export default function WatchlistScreen() {
     return Array.from(set).sort((a, b) => b - a);
   }, [library.annual, selectedYear]);
 
-  useEffect(() => {
-    if (!years.includes(selectedYear) && years.length > 0) {
-      setSelectedYear(years[0]);
-    }
-  }, [years, selectedYear]);
-
   const currentList: AnnualList | undefined = library.annual.find(
     (list) => list.year === selectedYear
   );
   const movies = currentList?.movies ?? [];
   const watchedCount = movies.filter((movie) => movie.status === 'watched').length;
   const progress = movies.length > 0 ? watchedCount / movies.length : 0;
+  const watchedPct = Math.round(progress * 100);
 
-  const cardWidth = Math.min(170, Math.floor((width - SPACE.xl * 2 - SPACE.md) / 2));
+  const gridGap = 10;
+  const contentWidth = Math.max(0, Math.min(width, 720) - 24);
+  const columns = contentWidth >= 600 ? 5 : contentWidth >= 380 ? 4 : 3;
+  const cardWidth = Math.floor((contentWidth - gridGap * (columns - 1)) / columns);
 
   const searchable = useMemo(() => searchableFilms(library), [library]);
   const { results: searchHits } = useMovieSearch(search, searchable);
@@ -87,7 +82,6 @@ export default function WatchlistScreen() {
   const closeAdd = () => {
     setAddOpen(false);
     setSearch('');
-    setManualPoster(undefined);
   };
 
   const addMovie = async (movie: Movie) => {
@@ -220,47 +214,56 @@ export default function WatchlistScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
-          paddingBottom: insets.bottom + SPACE.xxl,
+          paddingBottom: 36,
           width: '100%',
           maxWidth: 720,
           alignSelf: 'center',
         }}
       >
-        <ScreenHeader
-          eyebrow="Annual bucket list"
-          title="Watchlist"
-          subtitle="Films you mean to catch, year by year."
-        />
+        <AppHeader />
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.yearRow}
+        <View style={styles.topRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.yearScroller}
+            contentContainerStyle={styles.yearRow}
+          >
+            {years.map((year) => (
+              <Chip
+                key={year}
+                compact
+                label={String(year)}
+                active={selectedYear === year}
+                onPress={() => setSelectedYear(year)}
+              />
+            ))}
+          </ScrollView>
+          <ActionButton
+            label="Add a film"
+            icon="add"
+            compact
+            style={styles.addButton}
+            onPress={() => setAddOpen(true)}
+          />
+        </View>
+
+        <View
+          style={[styles.progressStrip, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}
         >
-          {years.map((year) => (
-            <Chip key={year} label={String(year)} active={selectedYear === year} onPress={() => setSelectedYear(year)} />
-          ))}
-        </ScrollView>
-
-        <Card style={styles.summary}>
-          <View style={styles.summaryHead}>
-            <Text style={[styles.summaryTitle, { color: colors.text }]}>
-              {movies.length} {movies.length === 1 ? 'film' : 'films'} in {selectedYear}
-            </Text>
-            <Text style={[styles.summaryCount, { color: colors.teal }]}>{watchedCount} watched</Text>
-          </View>
+          <Ionicons name="bookmark" size={14} color={colors.coralInk} />
+          <Text style={[styles.progressLabel, { color: colors.text }]} numberOfLines={1}>
+            {watchedCount}/{movies.length} watched
+          </Text>
           <View style={[styles.progressTrack, { backgroundColor: colors.surfaceAlt }]}>
             <View
               style={[
                 styles.progressFill,
-                { width: `${Math.round(progress * 100)}%`, backgroundColor: colors.teal },
+                { width: `${watchedPct}%`, backgroundColor: colors.primary },
               ]}
             />
           </View>
-        </Card>
-
-        <View style={styles.addRow}>
-          <ActionButton label="Add a film" icon="add" onPress={() => setAddOpen(true)} fullWidth />
+          <Text style={[styles.progressPct, { color: colors.coralInk }]}>{watchedPct}%</Text>
         </View>
 
         {loading ? (
@@ -270,17 +273,22 @@ export default function WatchlistScreen() {
         ) : movies.length === 0 ? (
           <View style={styles.emptyWrap}>
             <EmptyState
+              compact
               icon="bookmark-outline"
               title={`Nothing in ${selectedYear} yet`}
               message="Add the films you want to watch this year and track them as you go."
             />
           </View>
         ) : (
-          <View style={styles.grid}>
+          <View style={[styles.grid, { gap: gridGap }]}>
             {movies.map((movie) => (
               <Pressable
                 key={movie.id}
-                style={({ pressed }) => [styles.gridItem, pressed && { opacity: 0.8 }]}
+                style={({ pressed }) => [
+                  styles.gridItem,
+                  { width: cardWidth },
+                  pressed && { opacity: 0.8 },
+                ]}
                 onPress={() => setDetail({ listYear: selectedYear, item: movie })}
                 accessibilityRole="button"
                 accessibilityLabel={movie.title}
@@ -289,7 +297,7 @@ export default function WatchlistScreen() {
                   uri={resolvePoster(library, movie.movieId, movie.title) ?? movie.posterPath}
                   title={movie.title}
                   width={cardWidth}
-                  radius={RADIUS.lg}
+                  radius={RADIUS.md}
                 >
                   <View style={styles.posterStatus}>
                     <StatusPill status={movie.status} small />
@@ -298,7 +306,7 @@ export default function WatchlistScreen() {
                 <Text style={[styles.movieTitle, { color: colors.text }]} numberOfLines={2}>
                   {movie.title}
                 </Text>
-                <Text style={[styles.movieMeta, { color: colors.textDim }]}>
+                <Text style={[styles.movieMeta, { color: colors.textMuted }]}>
                   {movie.year || selectedYear}
                 </Text>
               </Pressable>
@@ -321,7 +329,7 @@ export default function WatchlistScreen() {
                 <Text style={[styles.sheetTitle, { color: colors.text }]}>Add to {selectedYear}</Text>
               </View>
               <Pressable onPress={closeAdd} accessibilityLabel="Close" hitSlop={8}>
-                <Ionicons name="close" size={24} color={colors.textMuted} />
+                <Ionicons name="close" size={22} color={colors.textMuted} />
               </Pressable>
             </View>
 
@@ -352,7 +360,7 @@ export default function WatchlistScreen() {
                         pressed && { opacity: 0.7 },
                       ]}
                     >
-                      <Poster uri={movie.posterPath} title={movie.title} width={40} radius={RADIUS.sm} />
+                      <Poster uri={movie.posterPath} title={movie.title} width={36} radius={RADIUS.sm} />
                       <View style={styles.flex}>
                         <Text style={[styles.resultTitle, { color: colors.text }]} numberOfLines={1}>
                           {movie.title}
@@ -363,7 +371,7 @@ export default function WatchlistScreen() {
                       </View>
                       <Ionicons
                         name={already ? 'checkmark-circle' : 'add-circle'}
-                        size={24}
+                        size={20}
                         color={already ? colors.teal : colors.accent}
                       />
                     </Pressable>
@@ -401,7 +409,7 @@ export default function WatchlistScreen() {
                 <View style={styles.sheetHeader}>
                   <Text style={[styles.sheetTitle, { color: colors.text }]}>{detail.listYear} film</Text>
                   <Pressable onPress={() => setDetail(null)} accessibilityLabel="Close" hitSlop={8}>
-                    <Ionicons name="close" size={24} color={colors.textMuted} />
+                    <Ionicons name="close" size={22} color={colors.textMuted} />
                   </Pressable>
                 </View>
 
@@ -410,7 +418,7 @@ export default function WatchlistScreen() {
                     uri={resolvePoster(library, detail.item.movieId, detail.item.title) ?? detail.item.posterPath}
                     title={detail.item.title}
                     movieId={detail.item.movieId}
-                    width={92}
+                    width={80}
                     onChange={async (uri) => {
                       await updateFilmPoster(detail.item.movieId, detail.item.title, uri);
                       await refresh();
@@ -422,7 +430,7 @@ export default function WatchlistScreen() {
                     <Text style={[styles.detailMeta, { color: colors.textDim }]}>
                       {detail.item.year || detail.listYear}
                     </Text>
-                    <View style={{ marginTop: SPACE.sm }}>
+                    <View style={{ marginTop: SPACE.xs }}>
                       <StatusPill status={detail.item.status} />
                     </View>
                   </View>
@@ -432,6 +440,7 @@ export default function WatchlistScreen() {
                 <View style={styles.statusChips}>
                   {STATUSES.map((status) => (
                     <Chip
+                      compact
                       key={status}
                       label={status.charAt(0).toUpperCase() + status.slice(1)}
                       active={detail.item.status === status}
@@ -442,21 +451,23 @@ export default function WatchlistScreen() {
 
                 <View style={styles.detailActions}>
                   <ActionButton
+                    compact
                     label={`Move to ${detail.listYear + 1}`}
                     icon="arrow-forward"
                     variant="ghost"
                     onPress={moveToNextYear}
-                    style={styles.flex}
+                    style={styles.detailButton}
                   />
                   <ActionButton
+                    compact
                     label="Remove"
                     icon="trash-outline"
                     variant="danger"
                     onPress={removeMovie}
-                    style={styles.flex}
+                    style={styles.detailButton}
                   />
                 </View>
-                {busy ? <ActivityIndicator color={colors.accent} style={{ marginTop: SPACE.md }} /> : null}
+                {busy ? <ActivityIndicator color={colors.accent} style={{ marginTop: SPACE.sm }} /> : null}
               </>
             ) : null}
           </View>
@@ -474,108 +485,129 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    minHeight: 32,
+    paddingHorizontal: 12,
+    marginLeft: 8,
+  },
+  topRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingRight: 12,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  yearScroller: {
+    flex: 1,
+    flexGrow: 1,
   },
   yearRow: {
-    paddingHorizontal: SPACE.xl,
-    gap: SPACE.sm,
-    paddingBottom: SPACE.lg,
-  },
-  addRow: {
-    paddingHorizontal: SPACE.xl,
-    marginBottom: SPACE.lg,
-  },
-  summary: {
-    marginHorizontal: SPACE.xl,
-    marginBottom: SPACE.lg,
-  },
-  summaryHead: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACE.md,
+    paddingHorizontal: 12,
+    gap: 6,
   },
-  summaryTitle: {
-    ...TYPE.small,
-    fontWeight: '700',
+  progressStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 12,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#142A45',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
-  summaryCount: {
-    ...TYPE.small,
+  progressLabel: {
+    fontSize: 12.5,
     fontWeight: '800',
+    letterSpacing: -0.1,
   },
   progressTrack: {
-    height: 8,
-    borderRadius: 999,
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 999,
+    borderRadius: 3,
+  },
+  progressPct: {
+    minWidth: 32,
+    textAlign: 'right',
+    fontSize: 12,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   loading: {
-    paddingTop: SPACE.xxxl,
+    paddingTop: SPACE.xl,
     alignItems: 'center',
   },
   emptyWrap: {
-    paddingHorizontal: SPACE.xl,
+    paddingHorizontal: 12,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: SPACE.xl,
-    gap: SPACE.md,
+    paddingHorizontal: 12,
   },
   gridItem: {
-    width: 170,
     maxWidth: '100%',
   },
   posterStatus: {
     position: 'absolute',
-    left: 8,
-    bottom: 8,
+    left: 6,
+    bottom: 6,
   },
   movieTitle: {
-    ...TYPE.small,
-    fontWeight: '700',
-    marginTop: SPACE.sm,
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '800',
+    letterSpacing: -0.1,
+    marginTop: 6,
+    minHeight: 30,
   },
   movieMeta: {
-    ...TYPE.caption,
-    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '600',
+    marginTop: 1,
   },
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
   },
   sheet: {
-    maxHeight: '86%',
-    borderTopLeftRadius: RADIUS.xl,
-    borderTopRightRadius: RADIUS.xl,
+    maxHeight: '88%',
+    borderTopLeftRadius: RADIUS.lg,
+    borderTopRightRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: SPACE.xl,
-    paddingTop: SPACE.md,
+    paddingHorizontal: SPACE.lg,
+    paddingTop: SPACE.sm,
   },
   sheetHandle: {
     alignSelf: 'center',
-    width: 40,
-    height: 4,
+    width: 36,
+    height: 3,
     borderRadius: 2,
     backgroundColor: 'rgba(128,128,128,0.4)',
-    marginBottom: SPACE.md,
+    marginBottom: SPACE.sm,
   },
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: SPACE.md,
-    marginBottom: SPACE.md,
+    marginBottom: SPACE.sm,
   },
   sheetTitle: {
     ...TYPE.heading,
+    fontSize: 16,
   },
   sheetSubtitle: {
     ...TYPE.caption,
@@ -586,8 +618,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACE.sm,
     paddingHorizontal: SPACE.md,
-    minHeight: 48,
-    borderRadius: RADIUS.md,
+    minHeight: 42,
+    borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
   },
   searchInput: {
@@ -609,7 +641,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACE.md,
-    paddingVertical: SPACE.sm,
+    paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   resultTitle: {
@@ -624,8 +656,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACE.sm,
-    marginTop: SPACE.md,
-    paddingVertical: 12,
+    marginTop: SPACE.sm,
+    paddingVertical: 10,
     paddingHorizontal: SPACE.md,
     borderRadius: RADIUS.md,
     borderWidth: StyleSheet.hairlineWidth,
@@ -655,7 +687,7 @@ const styles = StyleSheet.create({
   detailTop: {
     flexDirection: 'row',
     gap: SPACE.md,
-    marginBottom: SPACE.lg,
+    marginBottom: SPACE.md,
   },
   detailInfo: {
     flex: 1,
@@ -670,17 +702,23 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     ...TYPE.eyebrow,
-    fontSize: 10,
-    marginBottom: SPACE.sm,
+    fontSize: 9.5,
+    letterSpacing: 1.2,
+    marginBottom: SPACE.xs,
   },
   statusChips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: SPACE.sm,
-    marginBottom: SPACE.lg,
+    gap: 6,
+    marginBottom: SPACE.md,
   },
   detailActions: {
     flexDirection: 'row',
-    gap: SPACE.sm,
+    gap: 6,
+  },
+  detailButton: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 10,
   },
 });

@@ -29,6 +29,7 @@ function RootNavigator() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="viewing/[entryId]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="movie/[movieId]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="add-movie" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="films" options={{ animation: 'slide_from_right' }} />
