@@ -68,17 +68,13 @@ export default function StatisticsScreen() {
       if (!uniqueMap.has(entry.movieId)) uniqueMap.set(entry.movieId, entry);
     });
 
-
-    // Bucket list across every year.
-    const allBucket = library.annual.flatMap((list) => list.movies);
-    const bucketTotal = allBucket.length;
-    const bucketWatched = allBucket.filter((movie) => movie.status === 'watched').length;
-
     const monthlyCounts = Array.from({ length: 12 }, () => 0);
-    const yearlyCounts: Record<number, number> = {};
+    const filmsByYear: Record<number, Set<string>> = {};
+    const visitsByYear: Record<number, number> = {};
     entries.forEach((entry) => {
       const date = toDate(entry.watchedAt);
-      yearlyCounts[date.getFullYear()] = (yearlyCounts[date.getFullYear()] ?? 0) + 1;
+      visitsByYear[date.getFullYear()] = (visitsByYear[date.getFullYear()] ?? 0) + 1;
+      (filmsByYear[date.getFullYear()] ??= new Set<string>()).add(entry.movieId || entry.title.toLowerCase());
       if (date.getFullYear() === year) {
         monthlyCounts[date.getMonth()] += 1;
       }
@@ -98,10 +94,11 @@ export default function StatisticsScreen() {
     return {
       films: uniqueMap.size,
       visits: entries.length,
-      bucketTotal,
-      bucketWatched,
       monthlyCounts,
-      yearOverYear: Object.entries(yearlyCounts)
+      yearOverYear: Object.entries(filmsByYear)
+        .map(([label, films]) => ({ label, value: films.size }))
+        .sort((a, b) => Number(a.label) - Number(b.label)),
+      visitsOverYear: Object.entries(visitsByYear)
         .map(([label, value]) => ({ label, value }))
         .sort((a, b) => Number(a.label) - Number(b.label)),
       topRated: topRated.slice(0, 5),
@@ -110,8 +107,6 @@ export default function StatisticsScreen() {
 
   // Solo and Group count every year, not only the current one.
   const companion = useMemo(() => companionStats(library.entries), [library.entries]);
-  const completion =
-    stats.bucketTotal > 0 ? Math.round((stats.bucketWatched / stats.bucketTotal) * 100) : 0;
   const monthlyPeak = Math.max(...stats.monthlyCounts);
   const peakMonthIndex = stats.monthlyCounts.indexOf(monthlyPeak);
 
@@ -167,15 +162,6 @@ export default function StatisticsScreen() {
                   note={viewingsFilmsNote(companion.company)}
                 />
               </View>
-              <View style={styles.statRow}>
-                <MiniStat
-                  label="Bucket list"
-                  value={`${completion}%`}
-                  icon="checkmark-done-outline"
-                  tint={colors.primary}
-                  hint={`${stats.bucketWatched}/${stats.bucketTotal} all years`}
-                />
-              </View>
               {companion.unanswered > 0 ? (
                 <Text style={[styles.unansweredNote, { color: colors.textMuted }]}>
                   {companion.unanswered} {companion.unanswered === 1 ? 'viewing' : 'viewings'}{' '}
@@ -213,10 +199,18 @@ export default function StatisticsScreen() {
 
             <Card style={styles.section}>
               <View style={styles.cardHeader}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Year by year</Text>
-                <Text style={[styles.cardMeta, { color: colors.textDim }]}>visits</Text>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>Movies watched each year</Text>
+                <Text style={[styles.cardMeta, { color: colors.textDim }]}>movies</Text>
               </View>
-              <BarList items={stats.yearOverYear} color={colors.primary} unit=" visits" />
+              <BarList items={stats.yearOverYear} color={colors.primary} />
+            </Card>
+
+            <Card style={styles.section}>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>Theatre visits each year</Text>
+                <Text style={[styles.cardMeta, { color: colors.textDim }]}>theatre visits</Text>
+              </View>
+              <BarList items={stats.visitsOverYear} color={colors.accent} />
             </Card>
 
             {stats.topRated.length > 0 ? (

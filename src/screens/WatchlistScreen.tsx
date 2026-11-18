@@ -24,6 +24,7 @@ import {
 } from '../lib/library';
 import type { Movie } from '../api/movies';
 import { yearOf } from '../lib/format';
+import { notify } from '../lib/ui';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Poster } from '../components/Poster';
@@ -111,6 +112,15 @@ export default function WatchlistScreen() {
 
   const addMovie = async (movie: Movie) => {
     if (busy) return;
+    // Films are added to the current year's list, so a film released later than that cannot be added yet.
+    const releaseYear = movie.releaseDate ? Number(yearOf(movie.releaseDate)) : NaN;
+    if (Number.isFinite(releaseYear) && releaseYear > currentYear) {
+      notify(
+        'Not released yet',
+        `“${movie.title}” is a ${releaseYear} film, so it cannot be added to your ${currentYear} watchlist.`
+      );
+      return;
+    }
     setBusy(true);
     try {
       let added = false;

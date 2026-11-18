@@ -17,7 +17,6 @@ import { theatreDisplay } from '../lib/theatres';
 import { COMPANION_LABELS } from '../lib/stats';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
-import { EditIcon } from '../components/EditIcon';
 
 interface MonthGroup {
   key: string;
@@ -80,8 +79,17 @@ export default function DiaryScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <AppHeader title="Diary" subtitle="Every film you have watched, by year." />
 
+      {/* The page header and the summary stay put; only the years below scroll. */}
+      {!loading && hasEntries ? (
+        <View style={[styles.summary, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
+          <SummaryStat label="Total movies" value={uniqueTitles} hint="Unique titles" />
+        </View>
+      ) : null}
+
       <ScrollView
         showsVerticalScrollIndicator={false}
+        // Each year heading sticks to the top while its months scroll; the next year's heading replaces it.
+        stickyHeaderIndices={hasEntries && !loading ? yearGroups.map((_, index) => index * 2) : undefined}
         contentContainerStyle={{
           paddingBottom: 36,
           width: '100%',
@@ -103,39 +111,30 @@ export default function DiaryScreen() {
             />
           </View>
         ) : (
-          <>
-            {/* One summary card, two equal halves. */}
+          yearGroups.flatMap((yearGroup) => [
             <View
-              style={[
-                styles.summary,
-                { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-              ]}
+              key={`year-${yearGroup.year}`}
+              style={[styles.stickyYear, { backgroundColor: colors.background }]}
             >
-              <SummaryStat
-                label="Total movies"
-                value={uniqueTitles}
-                hint="Unique titles"
-              />
-            </View>
-
-            {yearGroups.map((yearGroup) => (
-              <View key={yearGroup.year} style={styles.yearBlock}>
-                <View style={styles.yearHeader}>
-                  <Text style={[styles.yearTitle, { color: colors.text }]}>{yearGroup.year}</Text>
-                  <View style={[styles.yearLine, { backgroundColor: colors.border }]} />
-                  <Text style={[styles.yearCount, { color: colors.textMuted }]}>
-                    {yearGroup.count} {yearGroup.count === 1 ? 'visit' : 'visits'}
-                  </Text>
-                </View>
-                <View style={[styles.yearRule, { backgroundColor: colors.text }]} />
-
+              <View style={styles.yearHeader}>
+                <Text style={[styles.yearTitle, { color: colors.text }]}>{yearGroup.year}</Text>
+                <Text style={[styles.yearCount, { color: colors.textMuted }]}>
+                  {yearGroup.count} {yearGroup.count === 1 ? 'visit' : 'visits'}
+                </Text>
+              </View>
+              <View style={[styles.yearRule, { backgroundColor: colors.text }]} />
+            </View>,
+            <View key={`months-${yearGroup.year}`} style={styles.monthsWrap}>
                 {yearGroup.months.map((monthGroup) => (
-                  <View key={monthGroup.key} style={styles.monthBlock}>
+                  <View
+                    key={monthGroup.key}
+                    style={[styles.monthBlock, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  >
                     <Text style={[styles.monthName, { color: colors.textMuted }]}>
                       {MONTH_NAMES[monthGroup.month].toUpperCase()}
                     </Text>
 
-                    {monthGroup.entries.map((entry) => {
+                    {monthGroup.entries.map((entry, entryIndex) => {
                       const date = toDate(entry.watchedAt);
                       const rating = typeof entry.rating === 'number' ? entry.rating : 0;
                       const place = theatreDisplay(entry, library.theatres);
@@ -144,13 +143,14 @@ export default function DiaryScreen() {
                           key={entry.id}
                           style={({ pressed }) => [
                             styles.row,
-                            { borderBottomColor: colors.border },
+                            entryIndex === monthGroup.entries.length - 1
+                              ? { borderBottomWidth: 0 }
+                              : { borderBottomColor: colors.border },
                             pressed && { backgroundColor: colors.accentSoft },
                           ]}
                           onPress={() =>
                             router.push({ pathname: '/viewing/[entryId]', params: { entryId: entry.id } })
                           }
-                          // No button role here: the Edit control below is a nested button.
                           accessible
                           accessibilityLabel={`Open ${entry.title}`}
                         >
@@ -173,7 +173,7 @@ export default function DiaryScreen() {
                                   <>
                                     <Ionicons name="location-outline" size={13} color={colors.textMuted} />
                                     <Text
-                                      style={[styles.lineText, { color: colors.text }]}
+                                      style={[styles.lineText, { color: colors.textMuted }]}
                                       numberOfLines={1}
                                     >
                                       {place.name}
@@ -203,32 +203,13 @@ export default function DiaryScreen() {
                             </Text>
                           ) : null}
 
-                          <Pressable
-                            hitSlop={8}
-                            onPress={() =>
-                              router.navigate({
-                                pathname: '/log',
-                                params: { editEntryId: entry.id, from: 'diary' },
-                              })
-                            }
-                            accessibilityRole="button"
-                            accessibilityLabel={`Edit ${entry.title}`}
-                            style={({ pressed }) => [
-                              styles.editBadge,
-                              { backgroundColor: colors.surfaceAlt },
-                              pressed && { opacity: 0.6 },
-                            ]}
-                          >
-                            <EditIcon size={15} color={colors.coralInk} />
-                          </Pressable>
                         </Pressable>
                       );
                     })}
                   </View>
                 ))}
-              </View>
-            ))}
-          </>
+            </View>,
+          ])
         )}
       </ScrollView>
     </View>
@@ -307,15 +288,21 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     fontWeight: '600',
   },
-  yearBlock: {
-    paddingHorizontal: 12,
-    marginTop: 16,
+  stickyYear: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 2,
+  },
+  monthsWrap: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
   yearHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 10,
-    marginBottom: 8,
+    marginBottom: 6,
     paddingHorizontal: 4,
   },
   yearTitle: {
@@ -325,10 +312,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.6,
     fontVariant: ['tabular-nums'],
-  },
-  yearLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth * 2,
   },
   yearCount: {
     fontSize: 12.5,
@@ -340,15 +323,20 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   monthBlock: {
-    marginBottom: 4,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingBottom: 2,
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   monthName: {
     ...TYPE.eyebrow,
     fontSize: 11,
     letterSpacing: 1.4,
-    paddingHorizontal: 4,
-    paddingTop: 16,
-    paddingBottom: 4,
+    paddingHorizontal: 2,
+    paddingTop: 14,
+    paddingBottom: 2,
   },
   row: {
     flexDirection: 'row',
@@ -424,12 +412,5 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontStyle: 'italic',
     marginTop: 2,
-  },
-  editBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

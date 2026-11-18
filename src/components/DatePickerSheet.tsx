@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RADIUS, SERIF, SPACE, TYPE, useTheme } from '../theme';
@@ -7,6 +7,10 @@ import { MONTH_NAMES, monthShort, todayInputValue } from '../lib/format';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MIN_YEAR = 1900;
+/** Years shown on one page of the year picker (3 columns by 4 rows). */
+const YEARS_PER_PAGE = 12;
+
+type Mode = 'days' | 'months' | 'years';
 
 interface DatePickerSheetProps {
   visible: boolean;
@@ -36,10 +40,13 @@ function toValue({ y, m, d }: Ymd): string {
 /** Sortable number for comparing dates without time zones. */
 const rank = ({ y, m, d }: Ymd) => y * 10000 + m * 100 + d;
 
-/** Compact calendar bottom sheet. Future dates cannot be picked. */
+/**
+ * Compact calendar bottom sheet. Future dates cannot be picked. Tapping a day highlights it, and
+ * "Confirm date" applies it. Tapping outside the sheet closes it without changing the date.
+ */
 export function DatePickerSheet({ visible, value, onSelect, onClose }: DatePickerSheetProps) {
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
       {/* Mounted only while open, so the calendar always starts on the selected month. */}
       <SheetBody value={value} onSelect={onSelect} onClose={onClose} />
     </Modal>
@@ -60,7 +67,13 @@ function SheetBody({
 
   const [viewYear, setViewYear] = useState(start.y);
   const [viewMonth, setViewMonth] = useState(start.m);
-  const [pickingMonth, setPickingMonth] = useState(false);
+  // Year picker, then month picker, then the days: each step opens the next.
+  const [mode, setMode] = useState<Mode>('days');
+  // First year on the page of years being shown. The newest page ends with the current year.
+  const pageStartFor = (year: number) => today.y - (YEARS_PER_PAGE - 1) - YEARS_PER_PAGE * Math.floor((today.y - year) / YEARS_PER_PAGE);
+  const [yearPageStart, setYearPageStart] = useState(() => pageStartFor(start.y));
+  // The highlighted day; only applied when "Confirm date" is tapped.
+  const [pending, setPending] = useState<Ymd>(start);
 
   const monthIndex = viewYear * 12 + viewMonth;
   const maxIndex = today.y * 12 + today.m;
@@ -75,9 +88,37 @@ function SheetBody({
 
   const choose = (date: Ymd) => {
     if (rank(date) > rank(today)) return;
-    onSelect(toValue(date));
-    onClose();
+    setPending(date);
   };
+
+  // 0 = closed, 1 = open. The dark backdrop fades while only the sheet slides, so the backdrop never moves.
+  const [progress] = useState(() => new Animated.Value(0));
+  const closing = useRef(false);
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [progress]);
+
+  const close = (after?: () => void) => {
+    if (closing.current) return;
+    closing.current = true;
+    Animated.timing(progress, {
+      toValue: 0,
+      duration: 200,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      after?.();
+      onClose();
+    });
+  };
+
+  const confirm = () => close(() => onSelect(toValue(pending)));
 
   // Day grid: leading blanks, then each day of the month.
   const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
@@ -90,21 +131,64 @@ function SheetBody({
   const rows = Array.from({ length: cells.length / 7 }, (_, r) => cells.slice(r * 7, r * 7 + 7));
 
   return (
-    <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
-      <Pressable style={styles.flex} onPress={onClose} accessibilityLabel="Close calendar" />
-      <View
+    <View style={styles.overlay}>
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay, opacity: progress }]}
+      />
+      <Pressable style={styles.flex} onPress={() => close()} accessibilityLabel="Close calendar" />
+      <Animated.View
         style={[
           styles.sheet,
           {
             backgroundColor: colors.background,
             borderColor: colors.borderSoft,
             paddingBottom: insets.bottom + 14,
+            transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [520, 0] }) }],
           },
         ]}
       >
         <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
-        {pickingMonth ? (
+        {mode === 'years' ? (
+          <>
+            <View style={styles.header}>
+              <NavButton
+                icon="chevron-back"
+                label="Earlier years"
+                disabled={yearPageStart <= MIN_YEAR}
+                onPress={() => setYearPageStart((first) => first - YEARS_PER_PAGE)}
+              />
+              <Text style={[styles.heading, { color: colors.text }]}>
+                {yearPageStart} – {yearPageStart + YEARS_PER_PAGE - 1}
+              </Text>
+              <NavButton
+                icon="chevron-forward"
+                label="Later years"
+                disabled={yearPageStart + YEARS_PER_PAGE - 1 >= today.y}
+                onPress={() => setYearPageStart((first) => first + YEARS_PER_PAGE)}
+              />
+            </View>
+            <View style={styles.pickGrid}>
+              {Array.from({ length: YEARS_PER_PAGE }, (_, index) => yearPageStart + index).map((year) => {
+                const disabled = year > today.y || year < MIN_YEAR;
+                const active = year === viewYear;
+                return (
+                  <PickCell
+                    key={year}
+                    label={String(year)}
+                    active={active}
+                    disabled={disabled}
+                    onPress={() => {
+                      setViewYear(year);
+                      setMode('months');
+                    }}
+                  />
+                );
+              })}
+            </View>
+          </>
+        ) : mode === 'months' ? (
           <>
             <View style={styles.header}>
               <NavButton
@@ -113,7 +197,18 @@ function SheetBody({
                 disabled={viewYear <= MIN_YEAR}
                 onPress={() => setViewYear((year) => year - 1)}
               />
-              <Text style={[styles.heading, { color: colors.text }]}>{viewYear}</Text>
+              <Pressable
+                onPress={() => {
+                  setYearPageStart(pageStartFor(viewYear));
+                  setMode('years');
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`${viewYear}, choose another year`}
+                style={styles.headingButton}
+                hitSlop={6}
+              >
+                <Text style={[styles.heading, { color: colors.text }]}>{viewYear}</Text>
+              </Pressable>
               <NavButton
                 icon="chevron-forward"
                 label="Next year"
@@ -121,38 +216,20 @@ function SheetBody({
                 onPress={() => setViewYear((year) => year + 1)}
               />
             </View>
-            <View style={styles.monthGrid}>
+            <View style={styles.pickGrid}>
               {MONTH_NAMES.map((_, index) => {
                 const disabled = viewYear * 12 + index > maxIndex;
-                const active = index === viewMonth;
                 return (
-                  <Pressable
+                  <PickCell
                     key={index}
+                    label={monthShort(index)}
+                    active={index === viewMonth}
                     disabled={disabled}
                     onPress={() => {
                       setViewMonth(index);
-                      setPickingMonth(false);
+                      setMode('days');
                     }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active, disabled }}
-                    style={[
-                      styles.monthCell,
-                      {
-                        backgroundColor: active ? colors.primary : colors.surface,
-                        borderColor: active ? colors.primary : colors.borderSoft,
-                        opacity: disabled ? 0.35 : 1,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.monthLabel,
-                        { color: active ? colors.primaryText : colors.text },
-                      ]}
-                    >
-                      {monthShort(index)}
-                    </Text>
-                  </Pressable>
+                  />
                 );
               })}
             </View>
@@ -167,7 +244,7 @@ function SheetBody({
                 onPress={() => shiftMonth(-1)}
               />
               <Pressable
-                onPress={() => setPickingMonth(true)}
+                onPress={() => setMode('months')}
                 accessibilityRole="button"
                 accessibilityLabel={`${MONTH_NAMES[viewMonth]} ${viewYear}, choose month and year`}
                 style={styles.headingButton}
@@ -176,7 +253,6 @@ function SheetBody({
                 <Text style={[styles.heading, { color: colors.text }]}>
                   {MONTH_NAMES[viewMonth]} {viewYear}
                 </Text>
-                <Ionicons name="chevron-down" size={15} color={colors.coralInk} />
               </Pressable>
               <NavButton
                 icon="chevron-forward"
@@ -200,8 +276,7 @@ function SheetBody({
                   if (day === null) return <View key={colIndex} style={styles.dayCell} />;
                   const date: Ymd = { y: viewYear, m: viewMonth, d: day };
                   const future = rank(date) > rank(today);
-                  const isSelected = selected !== null && rank(date) === rank(selected);
-                  const isToday = rank(date) === rank(today);
+                  const isSelected = rank(date) === rank(pending);
                   return (
                     <Pressable
                       key={colIndex}
@@ -215,17 +290,17 @@ function SheetBody({
                       <View
                         style={[
                           styles.dayInner,
-                          isSelected && { backgroundColor: colors.primary },
-                          !isSelected && isToday && { borderColor: colors.accent, borderWidth: 1.5 },
+                          !future && { backgroundColor: colors.backgroundAlt },
+                          isSelected && { backgroundColor: colors.text },
                         ]}
                       >
                         <Text
                           style={[
                             styles.dayText,
                             {
-                              color: isSelected ? colors.primaryText : colors.text,
+                              color: isSelected ? colors.onAccent : colors.text,
                               opacity: future ? 0.3 : 1,
-                              fontWeight: isSelected || isToday ? '800' : '600',
+                              fontWeight: isSelected ? '800' : '700',
                             },
                           ]}
                         >
@@ -240,29 +315,60 @@ function SheetBody({
           </>
         )}
 
-        <View style={styles.footer}>
+        {mode === 'days' ? (
           <Pressable
-            onPress={() => choose(today)}
+            onPress={confirm}
             accessibilityRole="button"
+            accessibilityLabel="Confirm date"
             style={({ pressed }) => [
-              styles.footerButton,
-              { borderColor: `${colors.accent}66`, backgroundColor: colors.accentSoft },
-              pressed && { opacity: 0.7 },
+              styles.confirm,
+              { backgroundColor: colors.primary },
+              pressed && { opacity: 0.8 },
             ]}
           >
-            <Ionicons name="today-outline" size={16} color={colors.coralInk} />
-            <Text style={[styles.footerText, { color: colors.coralInk }]}>Today</Text>
+            <Text style={[styles.confirmText, { color: colors.primaryText }]}>Confirm date</Text>
           </Pressable>
-          <Pressable
-            onPress={onClose}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.footerButton, styles.cancel, pressed && { opacity: 0.7 }]}
-          >
-            <Text style={[styles.footerText, { color: colors.textMuted }]}>Cancel</Text>
-          </Pressable>
-        </View>
-      </View>
+        ) : null}
+      </Animated.View>
     </View>
+  );
+}
+
+/** One tile of the year or month picker: sand when free, navy when chosen, faded when not allowed. */
+function PickCell({
+  label,
+  active,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active, disabled }}
+      style={({ pressed }) => [
+        styles.pickCell,
+        { backgroundColor: disabled ? 'transparent' : active ? colors.text : colors.backgroundAlt },
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <Text
+        style={[
+          styles.pickLabel,
+          { color: active ? colors.onAccent : colors.text, opacity: disabled ? 0.3 : 1 },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -362,14 +468,14 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     flex: 1,
-    height: 42,
+    height: 46,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dayInner: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0,
@@ -378,44 +484,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontVariant: ['tabular-nums'],
   },
-  monthGrid: {
+  pickGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
-  monthCell: {
+  pickCell: {
     width: '31.5%',
-    height: 46,
-    borderRadius: RADIUS.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    height: 54,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monthLabel: {
-    fontSize: 15,
+  pickLabel: {
+    fontSize: 16,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
-  footer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
-  },
-  footerButton: {
-    flex: 1,
-    height: 42,
+  confirm: {
+    height: 48,
+    marginTop: 14,
     borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cancel: {
-    borderColor: 'transparent',
-  },
-  footerText: {
-    fontSize: 14,
+  confirmText: {
+    fontSize: 15,
     fontWeight: '800',
   },
 });

@@ -171,8 +171,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Righteous_400Regular',
     fontSize: 60,
     // Tall enough line box that Android does not clip the descender of the "g".
-    lineHeight: 96,
+    lineHeight: 104,
     letterSpacing: 0.3,
-    includeFontPadding: false,
+    includeFontPadding: true,
+    paddingBottom: 6,
+    paddingRight: 2,
   },
 });

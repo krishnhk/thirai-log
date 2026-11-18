@@ -14,7 +14,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { INPUT_RESET, SPACE, RADIUS, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { useMovieSearch } from '../hooks/useMovieSearch';
-import { markWatchlistWatched, searchableFilms } from '../lib/library';
+import { filmYear, markWatchlistWatched, searchableFilms } from '../lib/library';
 import {
   resolvePoster,
   saveViewingEntry,
@@ -62,6 +62,7 @@ export default function LogScreen() {
   const [theatreId, setTheatreId] = useState<string | undefined>(undefined);
   const [companion, setCompanion] = useState<Companion | undefined>(undefined);
   const [companionError, setCompanionError] = useState(false);
+  const [theatreError, setTheatreError] = useState(false);
   // True when an entry saved before the question existed is being edited.
   const [unansweredOld, setUnansweredOld] = useState(false);
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
@@ -89,6 +90,7 @@ export default function LogScreen() {
         setTheatreId(undefined);
         setCompanion(undefined);
         setCompanionError(false);
+    setTheatreError(false);
         setDateText(todayInputValue());
       }
     }, [editEntryId])
@@ -107,6 +109,7 @@ export default function LogScreen() {
     setTheatreId(entry.theatreId);
     setCompanion(entry.companion);
     setCompanionError(false);
+    setTheatreError(false);
     setUnansweredOld(!entry.companion);
     setBanner(null);
   }
@@ -130,6 +133,7 @@ export default function LogScreen() {
     setTheatreId(undefined);
     setCompanion(undefined);
     setCompanionError(false);
+    setTheatreError(false);
     setUnansweredOld(false);
     setEditingId(null);
     router.setParams({ editEntryId: undefined, from: undefined });
@@ -182,6 +186,23 @@ export default function LogScreen() {
     const parsedDate = parseInputDate(dateText);
     if (!parsedDate) {
       setBanner({ type: 'error', text: 'Enter a valid date (YYYY-MM-DD).' });
+      return;
+    }
+
+    // A film cannot have been watched before the year it was released (as set in the Film database).
+    const film = searchable.find((item) => item.id === selected?.movieId);
+    const releaseYear = film ? Number(filmYear(film)) : NaN;
+    if (Number.isFinite(releaseYear) && parsedDate.getFullYear() < releaseYear) {
+      setBanner({
+        type: 'error',
+        text: `“${title}” is a ${releaseYear} film, so it cannot be logged with a date before ${releaseYear}.`,
+      });
+      return;
+    }
+
+    if (!theatre.trim()) {
+      setTheatreError(true);
+      setBanner({ type: 'error', text: 'Choose where you watched it.' });
       return;
     }
 
@@ -449,7 +470,7 @@ export default function LogScreen() {
             </View>
           </Field>
 
-          <Field label="Theatre" optional>
+          <Field label="Theatre" required error={theatreError && !theatre.trim() ? 'Choose where you watched it.' : null}>
             <TheatrePicker
               value={theatre}
               theatreId={theatreId}
@@ -457,6 +478,8 @@ export default function LogScreen() {
               onChange={(next) => {
                 setTheatre(next.theatre);
                 setTheatreId(next.theatreId);
+                setTheatreError(false);
+                setBanner(null);
               }}
               onOpen={() => scrollRef.current?.scrollToEnd({ animated: true })}
             />
@@ -468,6 +491,7 @@ export default function LogScreen() {
               onChange={(value) => {
                 setCompanion(value);
                 setCompanionError(false);
+    setTheatreError(false);
                 setBanner(null);
               }}
               error={companionError && !companion ? 'Choose who you watched with.' : null}
@@ -538,10 +562,14 @@ function StepLabel({ step, title }: { step: string; title: string }) {
 function Field({
   label,
   optional,
+  required,
+  error,
   children,
 }: {
   label: string;
   optional?: boolean;
+  required?: boolean;
+  error?: string | null;
   children: React.ReactNode;
 }) {
   const { colors } = useTheme();
@@ -550,8 +578,10 @@ function Field({
       <Text style={[styles.fieldLabel, { color: colors.text }]}>
         {label}
         {optional ? <Text style={{ color: colors.textMuted, fontWeight: '500' }}>  (optional)</Text> : null}
+        {required ? <Text style={{ color: colors.rose }}> *</Text> : null}
       </Text>
       {children}
+      {error ? <Text style={[styles.fieldError, { color: colors.rose }]}>{error}</Text> : null}
     </View>
   );
 }
@@ -582,6 +612,11 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+  },
+  fieldError: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
   },
   lockedFilm: {
     flexDirection: 'row',
