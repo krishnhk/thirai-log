@@ -34,6 +34,7 @@ import { confirmAction, notify } from '../lib/ui';
 import { ActionButton } from '../components/ActionButton';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { EditIcon } from '../components/EditIcon';
 
 /** Visited theatres, grouped by district. Add, edit, delete and search. */
 export default function TheatresScreen() {
@@ -96,6 +97,12 @@ export default function TheatresScreen() {
     setFormError(null);
     setFormOpen(true);
   };
+
+  // Editing with nothing changed: Save stays disabled.
+  const unchanged =
+    editing !== null &&
+    name.trim() === editing.name.trim() &&
+    district.trim() === editing.district.trim();
 
   const submitForm = async () => {
     if (saving) return;
@@ -222,26 +229,27 @@ export default function TheatresScreen() {
           </View>
         )}
         renderItem={({ item }) => (
-          <Pressable
-            onPress={() => openEdit(item)}
-            accessibilityRole="button"
-            accessibilityLabel={`Edit ${item.name}, ${item.district}`}
-            style={({ pressed }) => [
-              styles.row,
-              { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-              pressed && { opacity: 0.8 },
-            ]}
-          >
+          <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
             <View style={[styles.rowIcon, { backgroundColor: colors.coralSoft }]}>
               <Ionicons name="location" size={16} color={colors.coralInk} />
             </View>
             <View style={styles.rowText}>
               <Text style={[styles.rowTitle, { color: colors.text }]}>{item.name}</Text>
             </View>
-            <View style={[styles.editBadge, { backgroundColor: colors.surfaceAlt }]}>
-              <Ionicons name="pencil" size={14} color={colors.coralInk} />
-            </View>
-          </Pressable>
+            <Pressable
+              hitSlop={8}
+              onPress={() => openEdit(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${item.name}, ${item.district}`}
+              style={({ pressed }) => [
+                styles.editBadge,
+                { backgroundColor: colors.surfaceAlt },
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <EditIcon size={15} color={colors.coralInk} />
+            </Pressable>
+          </View>
         )}
         ListEmptyComponent={
           loading ? undefined : (
@@ -337,6 +345,7 @@ export default function TheatresScreen() {
                 icon="checkmark"
                 onPress={submitForm}
                 loading={saving}
+                disabled={unchanged}
                 style={styles.saveButton}
               />
             </View>

@@ -262,6 +262,19 @@ export default function LogScreen() {
     }
   };
 
+  // Editing a viewing with nothing changed: Update stays disabled.
+  const editedEntry = editingId ? library.entries.find((item) => item.id === editingId) : undefined;
+  const unchanged =
+    editedEntry !== undefined &&
+    selected !== null &&
+    selected.movieId === editedEntry.movieId &&
+    selected.title.trim() === editedEntry.title.trim() &&
+    dateText === toInputDate(editedEntry.watchedAt) &&
+    theatre.trim() === (editedEntry.theatre ?? '').trim() &&
+    theatreId === editedEntry.theatreId &&
+    companion === editedEntry.companion &&
+    selected.posterPath === resolvePoster(library, editedEntry.movieId, editedEntry.title);
+
   const isPicked = selected !== null && query === selected.title;
   const showResults = query.trim().length > 0 && !isPicked;
 
@@ -526,6 +539,7 @@ export default function LogScreen() {
           icon="checkmark"
           onPress={handleSave}
           loading={saving}
+          disabled={unchanged}
           style={styles.footerSave}
         />
       </View>

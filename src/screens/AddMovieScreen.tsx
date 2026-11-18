@@ -35,6 +35,8 @@ export default function AddMovieScreen() {
   const [year, setYear] = useState('');
   const [poster, setPoster] = useState<string | undefined>(undefined);
   const [initialPoster, setInitialPoster] = useState<string | undefined>(undefined);
+  // The film as saved, so Save can stay disabled until something changes.
+  const [initial, setInitial] = useState<{ title: string; year: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [draftId] = useState(() => `draft-${Date.now()}`);
@@ -52,6 +54,7 @@ export default function AddMovieScreen() {
       setYear(filmYear(film));
       setPoster(currentPoster);
       setInitialPoster(currentPoster);
+      setInitial({ title: film.title.trim(), year: filmYear(film) });
     });
     return () => {
       active = false;
@@ -68,6 +71,12 @@ export default function AddMovieScreen() {
     : !/^\d{4}$/.test(yearText) || yearNumber < 1888 || yearNumber > maxYear
       ? `Enter a valid year between 1888 and ${maxYear}.`
       : null;
+
+  // Editing with nothing changed (or the film not loaded yet): Save stays disabled.
+  const unchanged =
+    Boolean(editId) &&
+    (initial === null ||
+      (title.trim() === initial.title && yearText === initial.year && poster === initialPoster));
 
   const save = async () => {
     if (saving) return;
@@ -195,6 +204,7 @@ export default function AddMovieScreen() {
             icon="checkmark"
             onPress={save}
             loading={saving}
+            disabled={unchanged}
             fullWidth
           />
         </View>

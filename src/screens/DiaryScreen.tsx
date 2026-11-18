@@ -17,6 +17,7 @@ import { theatreDisplay } from '../lib/theatres';
 import { COMPANION_LABELS } from '../lib/stats';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
+import { EditIcon } from '../components/EditIcon';
 
 interface MonthGroup {
   key: string;
@@ -236,7 +237,7 @@ export default function DiaryScreen() {
                               pressed && { opacity: 0.6 },
                             ]}
                           >
-                            <Ionicons name="pencil" size={14} color={colors.coralInk} />
+                            <EditIcon size={15} color={colors.coralInk} />
                           </Pressable>
                         </Pressable>
                       );

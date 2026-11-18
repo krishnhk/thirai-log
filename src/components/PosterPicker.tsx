@@ -5,6 +5,7 @@ import { RADIUS, useTheme } from '../theme';
 import { Poster } from './Poster';
 import { pickPosterFromLibrary } from '../lib/posters';
 import { notify } from '../lib/ui';
+import { EditIcon } from './EditIcon';
 
 interface PosterPickerProps {
   /** Current poster (a web link or a file URI from a previous pick). */
@@ -83,7 +84,11 @@ export function PosterPicker({
           {busy ? (
             <ActivityIndicator size="small" color={colors.onAccent} />
           ) : (
-            <Ionicons name={uri ? 'create-outline' : 'image-outline'} size={14} color={colors.onAccent} />
+            uri ? (
+              <EditIcon size={13} color={colors.onAccent} />
+            ) : (
+              <Ionicons name="image-outline" size={14} color={colors.onAccent} />
+            )
           )}
         </View>
       </Poster>

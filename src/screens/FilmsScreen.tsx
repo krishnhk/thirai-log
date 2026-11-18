@@ -9,6 +9,7 @@ import { filmYear, resolvePoster, searchableFilms } from '../lib/library';
 import { Poster } from '../components/Poster';
 import { EmptyState } from '../components/EmptyState';
 import { ActionButton } from '../components/ActionButton';
+import { EditIcon } from '../components/EditIcon';
 
 /** Lists every film in the database, grouped by release year. Tap one to open it, or the pencil to edit. */
 export default function FilmsScreen() {
@@ -133,7 +134,7 @@ export default function FilmsScreen() {
                           pressed && { opacity: 0.6 },
                         ]}
                       >
-                        <Ionicons name="pencil" size={14} color={colors.coralInk} />
+                        <EditIcon size={15} color={colors.coralInk} />
                       </Pressable>
                     </Pressable>
                   );
