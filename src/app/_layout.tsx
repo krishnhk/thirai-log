@@ -36,6 +36,8 @@ function RootNavigator() {
         <Stack.Screen name="viewing/[entryId]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="add-movie" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="films" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="film/[filmId]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="watch-item/[itemId]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="theatres" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="statistics" options={{ animation: 'slide_from_right' }} />
       </Stack>

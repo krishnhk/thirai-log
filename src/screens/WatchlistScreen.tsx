@@ -13,36 +13,23 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { INPUT_RESET, SPACE, RADIUS, TYPE, useTheme } from '../theme';
+import { INPUT_RESET, SPACE, RADIUS, SERIF, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { useMovieSearch } from '../hooks/useMovieSearch';
 import { searchableFilms } from '../lib/library';
 import {
   mutateAnnualLists,
-  updateFilmPoster,
   resolvePoster,
   type AnnualList,
-  type EntryStatus,
   type WatchItem,
 } from '../lib/library';
 import type { Movie } from '../api/movies';
 import { yearOf } from '../lib/format';
-import { confirmAction } from '../lib/ui';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Poster } from '../components/Poster';
-import { PosterPicker } from '../components/PosterPicker';
-import { Chip } from '../components/Chip';
-import { YearSelect } from '../components/YearSelect';
 import { StatusPill } from '../components/StatusPill';
 import { ActionButton } from '../components/ActionButton';
-
-const STATUSES: EntryStatus[] = ['planned', 'watched', 'skipped', 'postponed'];
-
-interface DetailState {
-  listYear: number;
-  item: WatchItem;
-}
 
 export default function WatchlistScreen() {
   const { colors } = useTheme();
@@ -50,21 +37,31 @@ export default function WatchlistScreen() {
   const { width } = useWindowDimensions();
   const { library, loading, refresh } = useLibrary();
 
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const currentYear = new Date().getFullYear();
+  // Filters the films shown in the list (separate from the search inside the add card).
+  const [listQuery, setListQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [detail, setDetail] = useState<DetailState | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const years = useMemo(() => {
-    const set = new Set<number>(library.annual.map((list) => list.year));
-    set.add(new Date().getFullYear());
-    set.add(selectedYear);
-    return Array.from(set).sort((a, b) => b - a);
-  }, [library.annual, selectedYear]);
+  // Every year that has films, newest first. The search box filters the films inside each year.
+  const sections = useMemo(() => {
+    const needle = listQuery.trim().toLowerCase();
+    return library.annual
+      .map((list) => ({
+        year: list.year,
+        total: list.movies.length,
+        watched: list.movies.filter((movie) => movie.status === 'watched').length,
+        items: needle
+          ? list.movies.filter((movie) => movie.title.toLowerCase().includes(needle))
+          : list.movies,
+      }))
+      .filter((section) => section.items.length > 0)
+      .sort((a, b) => b.year - a.year);
+  }, [library.annual, listQuery]);
 
   const currentList: AnnualList | undefined = library.annual.find(
-    (list) => list.year === selectedYear
+    (list) => list.year === currentYear
   );
   const movies = currentList?.movies ?? [];
   const watchedCount = movies.filter((movie) => movie.status === 'watched').length;
@@ -78,7 +75,14 @@ export default function WatchlistScreen() {
 
   const searchable = useMemo(() => searchableFilms(library), [library]);
   const { results: searchHits } = useMovieSearch(search, searchable);
-  const searchResults = search.trim() ? searchHits : searchable.slice(0, 12);
+  // A film can be on only one year's watchlist. Nothing is suggested until something is typed,
+  // and films already on any year's list are left out (move or remove them to add them again).
+  const onWatchlist = useMemo(
+    () => new Set(library.annual.flatMap((list) => list.movies.map((item) => item.movieId))),
+    [library.annual]
+  );
+  const searching = search.trim().length > 0;
+  const searchResults = searching ? searchHits.filter((hit) => !onWatchlist.has(hit.id)) : [];
 
   const closeAdd = () => {
     setAddOpen(false);
@@ -91,20 +95,21 @@ export default function WatchlistScreen() {
     try {
       let added = false;
       await mutateAnnualLists((lists) => {
-        const index = lists.findIndex((list) => list.year === selectedYear);
+        const index = lists.findIndex((list) => list.year === currentYear);
         const baseList: AnnualList =
           index >= 0
             ? lists[index]
-            : { id: `year-${selectedYear}`, year: selectedYear, title: `${selectedYear} Watchlist`, movies: [] };
+            : { id: `year-${currentYear}`, year: currentYear, title: `${currentYear} Watchlist`, movies: [] };
 
-        if (baseList.movies.some((item) => item.movieId === movie.id)) return lists;
+        // Already on a watchlist (this year or any other): do not add it a second time.
+        if (lists.some((list) => list.movies.some((item) => item.movieId === movie.id))) return lists;
 
         const item: WatchItem = {
           id: `${movie.id}-${Date.now()}`,
           movieId: movie.id,
           title: movie.title,
           posterPath: movie.posterPath,
-          year: selectedYear,
+          year: currentYear,
           status: 'planned',
           addedAt: new Date().toISOString(),
         };
@@ -120,84 +125,6 @@ export default function WatchlistScreen() {
     } finally {
       setBusy(false);
     }
-  };
-
-  const updateStatus = async (status: EntryStatus) => {
-    if (!detail) return;
-    setBusy(true);
-    try {
-      await mutateAnnualLists((lists) =>
-        lists.map((list) =>
-          list.year === detail.listYear
-            ? {
-                ...list,
-                movies: list.movies.map((item) =>
-                  item.movieId === detail.item.movieId ? { ...item, status } : item
-                ),
-              }
-            : list
-        )
-      );
-      await refresh();
-      setDetail({ ...detail, item: { ...detail.item, status } });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const moveToNextYear = async () => {
-    if (!detail) return;
-    setBusy(true);
-    try {
-      const targetYear = detail.listYear + 1;
-      const movedItem: WatchItem = { ...detail.item, year: targetYear, status: 'planned' };
-
-      await mutateAnnualLists((lists) => {
-        const sourceIndex = lists.findIndex((list) => list.year === detail.listYear);
-        if (sourceIndex < 0) return lists;
-
-        const source = lists[sourceIndex];
-        const targetIndex = lists.findIndex((list) => list.year === targetYear);
-        const target: AnnualList =
-          targetIndex >= 0
-            ? lists[targetIndex]
-            : { id: `year-${targetYear}`, year: targetYear, title: `${targetYear} Watchlist`, movies: [] };
-
-        let updated = lists.map((list, i) =>
-          i === sourceIndex
-            ? { ...source, movies: source.movies.filter((m) => m.movieId !== detail.item.movieId) }
-            : i === targetIndex
-              ? { ...target, movies: [...target.movies, movedItem] }
-              : list
-        );
-        if (targetIndex < 0) {
-          updated = [...updated, { ...target, movies: [movedItem] }];
-        }
-        return updated;
-      });
-
-      await refresh();
-      setSelectedYear(targetYear);
-      setDetail(null);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const removeMovie = () => {
-    if (!detail) return;
-    const { listYear, item } = detail;
-    confirmAction('Remove film', `Remove “${item.title}” from your ${listYear} watchlist?`, async () => {
-      await mutateAnnualLists((lists) =>
-        lists.map((list) =>
-          list.year === listYear
-            ? { ...list, movies: list.movies.filter((m) => m.movieId !== item.movieId) }
-            : list
-        )
-      );
-      await refresh();
-      setDetail(null);
-    });
   };
 
   const manualTitle = search.trim();
@@ -223,31 +150,13 @@ export default function WatchlistScreen() {
           alignSelf: 'center',
         }}
       >
-        <View style={styles.topRow}>
-          <View style={styles.yearScroller}>
-            <YearSelect
-              title="Watchlist year"
-              arrows={false}
-              options={years.map((year) => ({ value: String(year), label: String(year) }))}
-              value={String(selectedYear)}
-              onChange={(value) => setSelectedYear(Number(value))}
-            />
-          </View>
-          <ActionButton
-            label="Add a film"
-            icon="add"
-            compact
-            style={styles.addButton}
-            onPress={() => setAddOpen(true)}
-          />
-        </View>
-
+        {/* Score for the current year */}
         <View
           style={[styles.progressStrip, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}
         >
           <Ionicons name="bookmark" size={14} color={colors.coralInk} />
           <Text style={[styles.progressLabel, { color: colors.text }]} numberOfLines={1}>
-            {watchedCount}/{movies.length} watched
+            {currentYear}: {watchedCount}/{movies.length} watched
           </Text>
           <View style={[styles.progressTrack, { backgroundColor: colors.surfaceAlt }]}>
             <View
@@ -260,67 +169,114 @@ export default function WatchlistScreen() {
           <Text style={[styles.progressPct, { color: colors.coralInk }]}>{watchedPct}%</Text>
         </View>
 
+        {/* Search on the left, add button on the right */}
+        <View style={styles.topRow}>
+          <View style={[styles.listSearch, { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft }]}>
+            <Ionicons name="search" size={16} color={colors.textMuted} />
+            <TextInput
+              value={listQuery}
+              onChangeText={setListQuery}
+              placeholder="Search your watchlist"
+              placeholderTextColor={colors.textMuted}
+              autoCorrect={false}
+              accessibilityLabel="Search your watchlist"
+              style={[styles.listSearchInput, INPUT_RESET, { color: colors.text }]}
+            />
+          </View>
+          <ActionButton
+            label="Add film"
+            icon="add"
+            compact
+            style={styles.addButton}
+            onPress={() => setAddOpen(true)}
+          />
+        </View>
+
         {loading ? (
           <View style={styles.loading}>
             <ActivityIndicator color={colors.accent} />
           </View>
-        ) : movies.length === 0 ? (
+        ) : sections.length === 0 ? (
           <View style={styles.emptyWrap}>
             <EmptyState
               compact
               icon="bookmark-outline"
-              title={`Nothing in ${selectedYear} yet`}
-              message="Add the films you want to watch this year and track them as you go."
+              title={listQuery.trim() ? 'No matching films' : `Nothing in ${currentYear} yet`}
+              message={
+                listQuery.trim()
+                  ? undefined
+                  : 'Add the films you want to watch this year and track them as you go.'
+              }
             />
           </View>
         ) : (
-          <View style={[styles.grid, { gap: gridGap }]}>
-            {movies.map((movie) => (
-              <Pressable
-                key={movie.id}
-                style={({ pressed }) => [
-                  styles.gridItem,
-                  { width: cardWidth },
-                  pressed && { opacity: 0.8 },
-                ]}
-                onPress={() => setDetail({ listYear: selectedYear, item: movie })}
-                accessibilityRole="button"
-                accessibilityLabel={movie.title}
-              >
-                <Poster
-                  uri={resolvePoster(library, movie.movieId, movie.title) ?? movie.posterPath}
-                  title={movie.title}
-                  width={cardWidth}
-                  radius={RADIUS.md}
-                >
-                  <View style={styles.posterStatus}>
-                    <StatusPill status={movie.status} small />
-                  </View>
-                </Poster>
-                <Text style={[styles.movieTitle, { color: colors.text }]} numberOfLines={2}>
-                  {movie.title}
+          sections.map((section) => (
+            <View key={section.year} style={styles.yearBlock}>
+              <View style={styles.yearHeader}>
+                <Text style={[styles.yearTitle, { color: colors.text }]}>{section.year}</Text>
+                <View style={[styles.yearLine, { backgroundColor: colors.border }]} />
+                <Text style={[styles.yearCount, { color: colors.textMuted }]}>
+                  {section.watched}/{section.total} watched
                 </Text>
-                <Text style={[styles.movieMeta, { color: colors.textMuted }]}>
-                  {movie.year || selectedYear}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+              </View>
+              <View style={[styles.grid, { gap: gridGap }]}>
+                {section.items.map((movie) => (
+                  <Pressable
+                    key={movie.id}
+                    style={({ pressed }) => [
+                      styles.gridItem,
+                      { width: cardWidth },
+                      pressed && { opacity: 0.8 },
+                    ]}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/watch-item/[itemId]',
+                        params: { itemId: movie.movieId, year: String(section.year) },
+                      })
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={movie.title}
+                  >
+                    <Poster
+                      uri={resolvePoster(library, movie.movieId, movie.title) ?? movie.posterPath}
+                      title={movie.title}
+                      width={cardWidth}
+                      radius={RADIUS.md}
+                    >
+                      <View style={styles.posterStatus}>
+                        <StatusPill status={movie.status} small />
+                      </View>
+                    </Poster>
+                    <Text style={[styles.movieTitle, { color: colors.text }]} numberOfLines={2}>
+                      {movie.title}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ))
         )}
       </ScrollView>
 
-      <Modal visible={addOpen} animationType="slide" transparent onRequestClose={closeAdd}>
-        <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+      <Modal visible={addOpen} animationType="fade" transparent onRequestClose={closeAdd}>
+        <View
+          style={[
+            styles.modalOverlay,
+            styles.addOverlay,
+            { backgroundColor: colors.overlay, paddingTop: insets.top + 24 },
+          ]}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeAdd} accessibilityLabel="Close" />
           <View
             style={[
               styles.sheet,
-              { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft, paddingBottom: insets.bottom + SPACE.lg },
+              styles.addCard,
+              { backgroundColor: colors.background, borderColor: colors.borderSoft, paddingBottom: SPACE.md },
             ]}
           >
-            <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <View style={styles.flex}>
-                <Text style={[styles.sheetTitle, { color: colors.text }]}>Add to {selectedYear}</Text>
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>Add to {currentYear}</Text>
               </View>
               <Pressable onPress={closeAdd} accessibilityLabel="Close" hitSlop={8}>
                 <Ionicons name="close" size={22} color={colors.textMuted} />
@@ -342,11 +298,10 @@ export default function WatchlistScreen() {
             <ScrollView style={styles.resultsList} keyboardShouldPersistTaps="handled">
               {searchResults.length === 0 ? null : (
                 searchResults.map((movie) => {
-                  const already = movies.some((item) => item.movieId === movie.id);
                   return (
                     <Pressable
                       key={movie.id}
-                      disabled={already || busy}
+                      disabled={busy}
                       onPress={() => addMovie(movie)}
                       style={({ pressed }) => [
                         styles.resultRow,
@@ -363,17 +318,13 @@ export default function WatchlistScreen() {
                           {movie.releaseDate ? yearOf(movie.releaseDate) : '—'}
                         </Text>
                       </View>
-                      <Ionicons
-                        name={already ? 'checkmark-circle' : 'add-circle'}
-                        size={20}
-                        color={already ? colors.teal : colors.accent}
-                      />
+                      <Ionicons name="add-circle" size={20} color={colors.accent} />
                     </Pressable>
                   );
                 })
               )}
 
-              {searchResults.length === 0 && manualTitle.length > 0 ? (
+              {searchHits.length === 0 && manualTitle.length > 0 ? (
                 <Pressable
                   onPress={addManually}
                   style={({ pressed }) => [styles.manualRow, { borderColor: colors.border }, pressed && { opacity: 0.7 }]}
@@ -389,84 +340,6 @@ export default function WatchlistScreen() {
         </View>
       </Modal>
 
-      <Modal visible={Boolean(detail)} animationType="slide" transparent onRequestClose={() => setDetail(null)}>
-        <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
-          <View
-            style={[
-              styles.sheet,
-              { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft, paddingBottom: insets.bottom + SPACE.lg },
-            ]}
-          >
-            <View style={styles.sheetHandle} />
-            {detail ? (
-              <>
-                <View style={styles.sheetHeader}>
-                  <Text style={[styles.sheetTitle, { color: colors.text }]}>{detail.listYear} film</Text>
-                  <Pressable onPress={() => setDetail(null)} accessibilityLabel="Close" hitSlop={8}>
-                    <Ionicons name="close" size={22} color={colors.textMuted} />
-                  </Pressable>
-                </View>
-
-                <View style={styles.detailTop}>
-                  <PosterPicker
-                    uri={resolvePoster(library, detail.item.movieId, detail.item.title) ?? detail.item.posterPath}
-                    title={detail.item.title}
-                    movieId={detail.item.movieId}
-                    width={80}
-                    onChange={async (uri) => {
-                      await updateFilmPoster(detail.item.movieId, detail.item.title, uri);
-                      await refresh();
-                      setDetail({ ...detail, item: { ...detail.item, posterPath: uri } });
-                    }}
-                  />
-                  <View style={styles.detailInfo}>
-                    <Text style={[styles.detailTitle, { color: colors.text }]}>{detail.item.title}</Text>
-                    <Text style={[styles.detailMeta, { color: colors.textDim }]}>
-                      {detail.item.year || detail.listYear}
-                    </Text>
-                    <View style={{ marginTop: SPACE.xs }}>
-                      <StatusPill status={detail.item.status} />
-                    </View>
-                  </View>
-                </View>
-
-                <Text style={[styles.detailLabel, { color: colors.textDim }]}>Update status</Text>
-                <View style={styles.statusChips}>
-                  {STATUSES.map((status) => (
-                    <Chip
-                      compact
-                      key={status}
-                      label={status.charAt(0).toUpperCase() + status.slice(1)}
-                      active={detail.item.status === status}
-                      onPress={() => updateStatus(status)}
-                    />
-                  ))}
-                </View>
-
-                <View style={styles.detailActions}>
-                  <ActionButton
-                    compact
-                    label={`Move to ${detail.listYear + 1}`}
-                    icon="arrow-forward"
-                    variant="ghost"
-                    onPress={moveToNextYear}
-                    style={styles.detailButton}
-                  />
-                  <ActionButton
-                    compact
-                    label="Remove"
-                    icon="trash-outline"
-                    variant="danger"
-                    onPress={removeMovie}
-                    style={styles.detailButton}
-                  />
-                </View>
-                {busy ? <ActivityIndicator color={colors.accent} style={{ marginTop: SPACE.sm }} /> : null}
-              </>
-            ) : null}
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -486,13 +359,51 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: 12,
-    marginTop: 10,
-    marginBottom: 8,
+    gap: 8,
+    paddingHorizontal: 12,
+    marginBottom: 6,
   },
-  yearScroller: {
+  listSearch: {
     flex: 1,
-    paddingLeft: 12,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    height: 42,
+    borderRadius: RADIUS.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  listSearchInput: {
+    ...TYPE.body,
+    flex: 1,
+    padding: 0,
+  },
+  yearBlock: {
+    marginTop: 8,
+  },
+  yearHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  yearTitle: {
+    fontFamily: SERIF,
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+    fontVariant: ['tabular-nums'],
+  },
+  yearLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth * 2,
+  },
+  yearCount: {
+    fontSize: 12.5,
+    fontWeight: '700',
   },
   progressStrip: {
     flexDirection: 'row',
@@ -569,6 +480,22 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  // The add-film search is a card at the top of the screen, so the keyboard never pushes it.
+  addOverlay: {
+    justifyContent: 'flex-start',
+    paddingHorizontal: 12,
+  },
+  addCard: {
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    maxHeight: '75%',
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    borderBottomLeftRadius: RADIUS.xl,
+    borderBottomRightRadius: RADIUS.xl,
+    paddingTop: SPACE.md,
   },
   sheet: {
     maxHeight: '88%',
@@ -671,42 +598,5 @@ const styles = StyleSheet.create({
   manualTitle: {
     ...TYPE.small,
     fontWeight: '800',
-  },
-  detailTop: {
-    flexDirection: 'row',
-    gap: SPACE.md,
-    marginBottom: SPACE.md,
-  },
-  detailInfo: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  detailTitle: {
-    ...TYPE.heading,
-  },
-  detailMeta: {
-    ...TYPE.caption,
-    marginTop: 4,
-  },
-  detailLabel: {
-    ...TYPE.eyebrow,
-    fontSize: 9.5,
-    letterSpacing: 1.2,
-    marginBottom: SPACE.xs,
-  },
-  statusChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: SPACE.md,
-  },
-  detailActions: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  detailButton: {
-    flex: 1,
-    minHeight: 40,
-    borderRadius: 10,
   },
 });

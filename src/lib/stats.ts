@@ -19,9 +19,9 @@ export interface CompanionGroup {
 export interface CompanionStats {
   alone: CompanionGroup;
   company: CompanionGroup;
-  /** Viewings this year that have no answer yet (logged before the question existed). */
+  /** Viewings in the counted period that have no answer yet (logged before the question existed). */
   unanswered: number;
-  /** All viewings this year, answered or not. */
+  /** All viewings in the counted period, answered or not. */
   total: number;
 }
 
@@ -29,10 +29,10 @@ export interface CompanionStats {
 const filmKey = (entry: CountableViewing) => entry.movieId || entry.title.toLowerCase();
 
 /**
- * Counts viewings, not films, for one calendar year and splits them into solo and
+ * Counts viewings, not films, for one calendar year (or for all years when no year is given) and splits them into solo and
  * group viewings. Viewings without an answer are not counted in either group.
  */
-export function companionStats(entries: CountableViewing[], year: number): CompanionStats {
+export function companionStats(entries: CountableViewing[], year?: number): CompanionStats {
   const films = { alone: new Set<string>(), company: new Set<string>() };
   const result: CompanionStats = {
     alone: { viewings: 0, films: 0 },
@@ -42,7 +42,7 @@ export function companionStats(entries: CountableViewing[], year: number): Compa
   };
 
   entries.forEach((entry) => {
-    if (yearOf(entry.watchedAt) !== year) return;
+    if (year !== undefined && yearOf(entry.watchedAt) !== year) return;
     result.total += 1;
     if (entry.companion === 'alone' || entry.companion === 'company') {
       result[entry.companion].viewings += 1;

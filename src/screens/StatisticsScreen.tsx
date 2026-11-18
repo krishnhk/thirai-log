@@ -68,16 +68,11 @@ export default function StatisticsScreen() {
       if (!uniqueMap.has(entry.movieId)) uniqueMap.set(entry.movieId, entry);
     });
 
-    const rated = entries.filter((entry) => typeof entry.rating === 'number');
-    const average =
-      rated.length > 0
-        ? rated.reduce((sum, entry) => sum + (entry.rating ?? 0), 0) / rated.length
-        : 0;
 
-    const currentList = library.annual.find((list) => list.year === year);
-    const bucketTotal = currentList?.movies.length ?? 0;
-    const bucketWatched =
-      currentList?.movies.filter((movie) => movie.status === 'watched').length ?? 0;
+    // Bucket list across every year.
+    const allBucket = library.annual.flatMap((list) => list.movies);
+    const bucketTotal = allBucket.length;
+    const bucketWatched = allBucket.filter((movie) => movie.status === 'watched').length;
 
     const monthlyCounts = Array.from({ length: 12 }, () => 0);
     const yearlyCounts: Record<number, number> = {};
@@ -103,7 +98,6 @@ export default function StatisticsScreen() {
     return {
       films: uniqueMap.size,
       visits: entries.length,
-      average,
       bucketTotal,
       bucketWatched,
       monthlyCounts,
@@ -114,7 +108,8 @@ export default function StatisticsScreen() {
     };
   }, [library, year]);
 
-  const companion = useMemo(() => companionStats(library.entries, year), [library.entries, year]);
+  // Solo and Group count every year, not only the current one.
+  const companion = useMemo(() => companionStats(library.entries), [library.entries]);
   const completion =
     stats.bucketTotal > 0 ? Math.round((stats.bucketWatched / stats.bucketTotal) * 100) : 0;
   const monthlyPeak = Math.max(...stats.monthlyCounts);
@@ -151,24 +146,8 @@ export default function StatisticsScreen() {
           <>
             <View style={styles.statGrid}>
               <View style={styles.statRow}>
-                <MiniStat label="Films logged" value={stats.films} icon="film-outline" tint={colors.accent} hint="all time" />
-                <MiniStat label="Theatre visits" value={stats.visits} icon="ticket-outline" tint={colors.teal} hint="all time" />
-              </View>
-              <View style={styles.statRow}>
-                <MiniStat
-                  label="Average rating"
-                  value={stats.average > 0 ? stats.average.toFixed(1) : '—'}
-                  icon="star-outline"
-                  tint={colors.star}
-                  hint={stats.average > 0 ? 'out of 5' : 'not rated'}
-                />
-                <MiniStat
-                  label="Bucket list"
-                  value={`${completion}%`}
-                  icon="checkmark-done-outline"
-                  tint={colors.primary}
-                  hint={`${stats.bucketWatched}/${stats.bucketTotal} this year`}
-                />
+                <MiniStat label="Films logged" value={stats.films} icon="film-outline" tint={colors.accent} hint="all years" />
+                <MiniStat label="Theatre visits" value={stats.visits} icon="ticket-outline" tint={colors.teal} hint="all years" />
               </View>
               <View style={styles.statRow}>
                 <MiniStat
@@ -176,7 +155,7 @@ export default function StatisticsScreen() {
                   value={companion.alone.viewings}
                   icon="person-outline"
                   tint={colors.primary}
-                  hint="this year"
+                  hint="all years"
                   note={viewingsFilmsNote(companion.alone)}
                 />
                 <MiniStat
@@ -184,13 +163,22 @@ export default function StatisticsScreen() {
                   value={companion.company.viewings}
                   icon="people-outline"
                   tint={colors.teal}
-                  hint="this year"
+                  hint="all years"
                   note={viewingsFilmsNote(companion.company)}
+                />
+              </View>
+              <View style={styles.statRow}>
+                <MiniStat
+                  label="Bucket list"
+                  value={`${completion}%`}
+                  icon="checkmark-done-outline"
+                  tint={colors.primary}
+                  hint={`${stats.bucketWatched}/${stats.bucketTotal} all years`}
                 />
               </View>
               {companion.unanswered > 0 ? (
                 <Text style={[styles.unansweredNote, { color: colors.textMuted }]}>
-                  {companion.unanswered} {companion.unanswered === 1 ? 'viewing' : 'viewings'} this year{' '}
+                  {companion.unanswered} {companion.unanswered === 1 ? 'viewing' : 'viewings'}{' '}
                   {companion.unanswered === 1 ? 'has' : 'have'} no answer yet.
                 </Text>
               ) : null}
