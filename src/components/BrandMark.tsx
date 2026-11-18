@@ -33,8 +33,8 @@ export function BrandMark({ height = 30 }: BrandMarkProps) {
           {
             color: NAVY,
             fontSize: Math.round(height * 0.64),
-            // Line box slightly taller than the font size, so the text centres on the mark.
-            lineHeight: Math.round(height * 0.64 * 1.2),
+            // Tall enough line box that Android does not clip the descender of the "g".
+            lineHeight: Math.round(height * 0.64 * 1.6),
             // Centre the glyphs inside their line box, so the wordmark lines up with the mark and button.
             includeFontPadding: false,
             textAlignVertical: 'center',
