@@ -127,25 +127,13 @@ export default function DiaryScreen() {
                     {yearGroup.count} {yearGroup.count === 1 ? 'visit' : 'visits'}
                   </Text>
                 </View>
+                <View style={[styles.yearRule, { backgroundColor: colors.text }]} />
 
                 {yearGroup.months.map((monthGroup) => (
-                  <View
-                    key={monthGroup.key}
-                    style={[
-                      styles.monthCard,
-                      { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-                    ]}
-                  >
-                    <View style={styles.monthHead}>
-                      <View style={[styles.monthTick, { backgroundColor: colors.gold }]} />
-                      <Text style={[styles.monthName, { color: colors.coralInk }]}>
-                        {MONTH_NAMES[monthGroup.month].toUpperCase()}
-                      </Text>
-                      <Text style={[styles.monthCount, { color: colors.textMuted }]}>
-                        {monthGroup.entries.length}{' '}
-                        {monthGroup.entries.length === 1 ? 'visit' : 'visits'}
-                      </Text>
-                    </View>
+                  <View key={monthGroup.key} style={styles.monthBlock}>
+                    <Text style={[styles.monthName, { color: colors.textMuted }]}>
+                      {MONTH_NAMES[monthGroup.month].toUpperCase()}
+                    </Text>
 
                     {monthGroup.entries.map((entry) => {
                       const date = toDate(entry.watchedAt);
@@ -156,7 +144,7 @@ export default function DiaryScreen() {
                           key={entry.id}
                           style={({ pressed }) => [
                             styles.row,
-                            { borderTopColor: colors.borderSoft },
+                            { borderBottomColor: colors.border },
                             pressed && { backgroundColor: colors.accentSoft },
                           ]}
                           onPress={() =>
@@ -176,21 +164,9 @@ export default function DiaryScreen() {
                           </View>
 
                           <View style={styles.body}>
-                            <View style={styles.titleRow}>
-                              <Text
-                                style={[styles.title, { color: colors.text }]}
-                                numberOfLines={2}
-                              >
-                                {entry.title}
-                              </Text>
-                              {entry.companion ? (
-                                <View style={[styles.companionTag, { backgroundColor: colors.coralSoft }]}>
-                                  <Text style={[styles.companionTagText, { color: colors.coralInk }]}>
-                                    {COMPANION_LABELS[entry.companion]}
-                                  </Text>
-                                </View>
-                              ) : null}
-                            </View>
+                            <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
+                              {entry.title}
+                            </Text>
                             {place || rating > 0 ? (
                               <View style={styles.line}>
                                 {place ? (
@@ -220,6 +196,12 @@ export default function DiaryScreen() {
                               </Text>
                             ) : null}
                           </View>
+
+                          {entry.companion ? (
+                            <Text style={[styles.companionText, { color: colors.accent }]}>
+                              {COMPANION_LABELS[entry.companion]}
+                            </Text>
+                          ) : null}
 
                           <Pressable
                             hitSlop={8}
@@ -352,47 +334,29 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '700',
   },
-  monthCard: {
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 10,
-    overflow: 'hidden',
-    shadowColor: '#1A2A42',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
+  yearRule: {
+    height: 2,
+    borderRadius: 1,
+    marginHorizontal: 4,
   },
-  monthHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  monthTick: {
-    width: 3,
-    height: 14,
-    borderRadius: 2,
+  monthBlock: {
+    marginBottom: 4,
   },
   monthName: {
-    flex: 1,
     ...TYPE.eyebrow,
-    fontSize: 11.5,
-    letterSpacing: 1.2,
-  },
-  monthCount: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    letterSpacing: 1.4,
+    paddingHorizontal: 4,
+    paddingTop: 16,
+    paddingBottom: 4,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 4,
+    paddingVertical: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   dayStub: {
     width: 30,
@@ -449,23 +413,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  companionTag: {
-    flexShrink: 0,
-    marginTop: 1,
-    paddingHorizontal: 8,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  companionTagText: {
-    fontSize: 11,
-    lineHeight: 14,
+  companionText: {
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '800',
     letterSpacing: 0.2,
   },

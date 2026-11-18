@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,11 +13,13 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RADIUS, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
-import { resolvePoster } from '../lib/library';
+import { deleteViewingEntry, resolvePoster } from '../lib/library';
+import { confirmAction, notify } from '../lib/ui';
 import { theatreDisplay } from '../lib/theatres';
 import { COMPANION_LABELS } from '../lib/stats';
 import { MONTH_NAMES, toDate } from '../lib/format';
 import { Poster } from '../components/Poster';
+import { EditIcon } from '../components/EditIcon';
 import { ActionButton } from '../components/ActionButton';
 
 interface ViewingDetailScreenProps {
@@ -40,14 +43,32 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const { library, loading } = useLibrary();
+  const { library, loading, refresh } = useLibrary();
+  const [deleting, setDeleting] = useState(false);
 
   const entry = library.entries.find((item) => item.id === entryId);
   const place = entry ? theatreDisplay(entry, library.theatres) : null;
 
-  // Large poster that still leaves room for the text on short phones.
-  const reserved = showDone ? 400 : 330;
-  const posterWidth = Math.round(Math.min(width * 0.6, (height - insets.top - reserved) / 1.5, 280));
+  const handleDelete = () => {
+    if (!entry || deleting) return;
+    const id = entry.id;
+    confirmAction('Delete entry', 'Are you sure you want to delete this diary entry?', async () => {
+      setDeleting(true);
+      try {
+        await deleteViewingEntry(id);
+        await refresh();
+        router.navigate('/diary');
+      } catch {
+        notify('Could not delete', 'This diary entry could not be deleted. Please try again.');
+      } finally {
+        setDeleting(false);
+      }
+    });
+  };
+
+  // Poster sized to leave room for the title, the details and the Edit button on short phones.
+  const reserved = showDone ? 520 : 440;
+  const posterWidth = Math.round(Math.min(width * 0.44, (height - insets.top - reserved) / 1.5, 200));
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -66,19 +87,12 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.content, { paddingVertical: 16 }]}
         >
-          <View
-            style={[
-              styles.posterShadow,
-              { shadowColor: colors.primary, borderRadius: RADIUS.xl },
-            ]}
-          >
-            <Poster
-              uri={resolvePoster(library, entry.movieId, entry.title)}
-              title={entry.title}
-              width={posterWidth}
-              radius={RADIUS.xl}
-            />
-          </View>
+          <Poster
+            uri={resolvePoster(library, entry.movieId, entry.title)}
+            title={entry.title}
+            width={posterWidth}
+            radius={RADIUS.lg}
+          />
 
           <Text
             style={[
@@ -93,23 +107,24 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
           >
             {entry.title}
           </Text>
-          <View style={[styles.rule, { backgroundColor: colors.gold }]} />
+          {place ? (
+            <Text style={[styles.place, { color: colors.textMuted }]} numberOfLines={1}>
+              {place.district ? `${place.name} · ${place.district}` : place.name}
+            </Text>
+          ) : null}
+          <View style={[styles.rule, { backgroundColor: colors.border }]} />
 
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
-            <DetailRow
-              icon="calendar"
-              label="Watched on"
-              value={longDate(entry.watchedAt)}
-            />
+          <View style={styles.list}>
+            <DetailRow icon="calendar" label="Watched on" value={longDate(entry.watchedAt)} />
             {place ? (
               <>
-                <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
                 <DetailRow icon="location" label="Theatre" value={place.name} hint={place.district} />
               </>
             ) : null}
             {entry.companion ? (
               <>
-                <View style={[styles.divider, { backgroundColor: colors.borderSoft }]} />
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
                 <DetailRow
                   icon={entry.companion === 'alone' ? 'person' : 'people'}
                   label="Watched"
@@ -117,6 +132,41 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
                 />
               </>
             ) : null}
+          </View>
+
+          <View style={styles.actions}>
+            <Pressable
+              onPress={() =>
+                router.navigate({
+                  pathname: '/log',
+                  params: { editEntryId: entry.id, from: 'diary' },
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${entry.title}`}
+              style={({ pressed }) => [
+                styles.actionButton,
+                { borderColor: colors.accent },
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <EditIcon size={15} color={colors.accent} />
+              <Text style={[styles.actionLabel, { color: colors.accent }]}>Edit</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleDelete}
+              disabled={deleting}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${entry.title}`}
+              style={({ pressed }) => [
+                styles.actionButton,
+                { borderColor: colors.rose },
+                (pressed || deleting) && { opacity: 0.6 },
+              ]}
+            >
+              <Ionicons name="trash-outline" size={17} color={colors.rose} />
+              <Text style={[styles.actionLabel, { color: colors.rose }]}>Delete</Text>
+            </Pressable>
           </View>
         </ScrollView>
       )}
@@ -159,8 +209,8 @@ function DetailRow({
   const { colors } = useTheme();
   return (
     <View style={styles.row}>
-      <View style={[styles.iconBadge, { backgroundColor: colors.coralSoft }]}>
-        <Ionicons name={icon} size={17} color={colors.coralInk} />
+      <View style={styles.iconBadge}>
+        <Ionicons name={icon} size={18} color={colors.accent} />
       </View>
       <View style={styles.rowText}>
         <Text style={[styles.rowLabel, { color: colors.textMuted }]}>{label}</Text>
@@ -212,40 +262,50 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     alignSelf: 'center',
   },
-  posterShadow: {
-    shadowOpacity: 0.28,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 10,
-  },
   title: {
     ...TYPE.title,
     fontSize: 28,
     lineHeight: 34,
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: 18,
     // Use the full width and break long words instead of running past the screen edge.
     width: '100%',
     ...({ wordBreak: 'break-word', overflowWrap: 'anywhere' } as object),
   },
-  rule: {
-    width: 36,
-    height: 2,
-    borderRadius: 1,
-    marginTop: 10,
-    marginBottom: 16,
+  place: {
+    ...TYPE.small,
+    fontSize: 13,
+    marginTop: 4,
+    textAlign: 'center',
   },
-  card: {
+  rule: {
+    width: '60%',
+    height: StyleSheet.hairlineWidth * 2,
+    marginTop: 16,
+    marginBottom: 6,
+  },
+  list: {
     width: '100%',
-    borderRadius: RADIUS.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    shadowColor: '#1A2A42',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
+  },
+  actions: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  actionButton: {
+    flex: 1,
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1.5,
+  },
+  actionLabel: {
+    fontSize: 14,
+    fontWeight: '800',
   },
   row: {
     flexDirection: 'row',
@@ -255,9 +315,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   iconBadge: {
-    width: 34,
+    width: 28,
     height: 34,
-    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },

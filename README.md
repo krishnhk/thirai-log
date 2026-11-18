@@ -10,7 +10,7 @@ Built with Expo SDK 58, React Native 0.88 and Expo Router. The app targets Andro
 - **Diary:** every viewing, grouped by year and month. Tap a row to open it, or the pencil to edit. The top card shows the number of different movies you have logged.
 - **Log:** add a viewing. Search your saved films, pick the date from a calendar, choose a saved theatre, and say whether you watched solo or in a group (required). Editing an existing viewing hides the tab bar and lets you delete it after a confirmation.
 - **Viewing detail:** poster, film name, date, theatre and who you watched with. After logging a film it shows a Done button that returns to the Diary.
-- **Watchlist:** a bucket list for each year with a status for every film (planned, watched, skipped, postponed).
+- **Watchlist:** a bucket list for each year with a status for every film (planned, watched or skipped).
 - **Library:** one place for Theatres, the Film database, Statistics and Backup.
   - **Theatres:** the theatres you have visited, grouped by district, with search, add, edit and delete. Older viewings that only have a typed theatre name can be imported once.
   - **Film database:** the films you have saved. Add a film with a title and a required release year, and an optional poster from your photo library.

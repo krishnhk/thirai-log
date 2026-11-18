@@ -10,7 +10,7 @@ const STORAGE_KEYS = {
   annualWatchlists: DATA_FILES.annualWatchlists,
 } as const;
 
-export type EntryStatus = 'planned' | 'watched' | 'skipped' | 'postponed';
+export type EntryStatus = 'planned' | 'watched' | 'skipped';
 
 /** Who a viewing was watched with. Older viewings have no answer. */
 export type Companion = 'alone' | 'company';
@@ -60,7 +60,8 @@ export interface Library {
 }
 
 function normalizeStatus(value: unknown): EntryStatus {
-  return value === 'watched' || value === 'skipped' || value === 'postponed' ? value : 'planned';
+  // Anything else, including the old "postponed" status, counts as planned.
+  return value === 'watched' || value === 'skipped' ? value : 'planned';
 }
 
 function normalizeEntry(raw: any): ViewingEntry {

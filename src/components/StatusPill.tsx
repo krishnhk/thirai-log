@@ -7,7 +7,6 @@ const LABELS: Record<EntryStatus, string> = {
   planned: 'Planned',
   watched: 'Watched',
   skipped: 'Skipped',
-  postponed: 'Postponed',
 };
 
 interface StatusPillProps {
@@ -23,9 +22,7 @@ export function StatusPill({ status, small }: StatusPillProps) {
       ? colors.teal
       : status === 'skipped'
         ? colors.rose
-        : status === 'postponed'
-          ? colors.gold
-          : colors.blue;
+        : colors.blue;
 
   return (
     <View

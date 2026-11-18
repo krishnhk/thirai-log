@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,8 +18,8 @@ import { useMovieSearch } from '../hooks/useMovieSearch';
 import { searchableFilms } from '../lib/library';
 import {
   mutateAnnualLists,
-  resolvePoster,
   type AnnualList,
+  type EntryStatus,
   type WatchItem,
 } from '../lib/library';
 import type { Movie } from '../api/movies';
@@ -28,13 +27,23 @@ import { yearOf } from '../lib/format';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Poster } from '../components/Poster';
-import { StatusPill } from '../components/StatusPill';
 import { ActionButton } from '../components/ActionButton';
+
+// Colours of the status label shown beside films that are not watched yet.
+const STATUS_COLORS: Record<EntryStatus, string> = {
+  planned: '#3B5F94',
+  watched: '#2F7D5B',
+  skipped: '#B4533F',
+};
+const STATUS_LABELS: Record<EntryStatus, string> = {
+  planned: 'Planned',
+  watched: 'Watched',
+  skipped: 'Skipped',
+};
 
 export default function WatchlistScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const { library, loading, refresh } = useLibrary();
 
   const currentYear = new Date().getFullYear();
@@ -60,18 +69,29 @@ export default function WatchlistScreen() {
       .sort((a, b) => b.year - a.year);
   }, [library.annual, listQuery]);
 
-  const currentList: AnnualList | undefined = library.annual.find(
-    (list) => list.year === currentYear
-  );
-  const movies = currentList?.movies ?? [];
-  const watchedCount = movies.filter((movie) => movie.status === 'watched').length;
-  const progress = movies.length > 0 ? watchedCount / movies.length : 0;
-  const watchedPct = Math.round(progress * 100);
-
-  const gridGap = 10;
-  const contentWidth = Math.max(0, Math.min(width, 720) - 24);
-  const columns = contentWidth >= 600 ? 5 : contentWidth >= 380 ? 4 : 3;
-  const cardWidth = Math.floor((contentWidth - gridGap * (columns - 1)) / columns);
+  // Tick the circle to mark a film watched; tick it again to put it back to planned.
+  const toggleWatched = async (year: number, movie: WatchItem) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const status: EntryStatus = movie.status === 'watched' ? 'planned' : 'watched';
+      await mutateAnnualLists((lists) =>
+        lists.map((list) =>
+          list.year === year
+            ? {
+                ...list,
+                movies: list.movies.map((item) =>
+                  item.movieId === movie.movieId ? { ...item, status } : item
+                ),
+              }
+            : list
+        )
+      );
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const searchable = useMemo(() => searchableFilms(library), [library]);
   const { results: searchHits } = useMovieSearch(search, searchable);
@@ -150,25 +170,6 @@ export default function WatchlistScreen() {
           alignSelf: 'center',
         }}
       >
-        {/* Score for the current year */}
-        <View
-          style={[styles.progressStrip, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}
-        >
-          <Ionicons name="bookmark" size={14} color={colors.coralInk} />
-          <Text style={[styles.progressLabel, { color: colors.text }]} numberOfLines={1}>
-            {currentYear}: {watchedCount}/{movies.length} watched
-          </Text>
-          <View style={[styles.progressTrack, { backgroundColor: colors.surfaceAlt }]}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${watchedPct}%`, backgroundColor: colors.primary },
-              ]}
-            />
-          </View>
-          <Text style={[styles.progressPct, { color: colors.coralInk }]}>{watchedPct}%</Text>
-        </View>
-
         {/* Search on the left, add button on the right */}
         <View style={styles.topRow}>
           <View style={[styles.listSearch, { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft }]}>
@@ -210,51 +211,76 @@ export default function WatchlistScreen() {
             />
           </View>
         ) : (
-          sections.map((section) => (
-            <View key={section.year} style={styles.yearBlock}>
-              <View style={styles.yearHeader}>
-                <Text style={[styles.yearTitle, { color: colors.text }]}>{section.year}</Text>
-                <View style={[styles.yearLine, { backgroundColor: colors.border }]} />
-                <Text style={[styles.yearCount, { color: colors.textMuted }]}>
-                  {section.watched}/{section.total} watched
-                </Text>
-              </View>
-              <View style={[styles.grid, { gap: gridGap }]}>
-                {section.items.map((movie) => (
-                  <Pressable
-                    key={movie.id}
-                    style={({ pressed }) => [
-                      styles.gridItem,
-                      { width: cardWidth },
-                      pressed && { opacity: 0.8 },
-                    ]}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/watch-item/[itemId]',
-                        params: { itemId: movie.movieId, year: String(section.year) },
-                      })
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel={movie.title}
-                  >
-                    <Poster
-                      uri={resolvePoster(library, movie.movieId, movie.title) ?? movie.posterPath}
-                      title={movie.title}
-                      width={cardWidth}
-                      radius={RADIUS.md}
+          sections.map((section) => {
+            const pct = section.total > 0 ? Math.round((section.watched / section.total) * 100) : 0;
+            return (
+              <View key={section.year} style={styles.yearBlock}>
+                <View style={styles.yearHeader}>
+                  <Text style={[styles.yearTitle, { color: colors.text }]}>{section.year}</Text>
+                  <Text style={[styles.yearCount, { color: colors.textMuted }]}>
+                    {section.watched} of {section.total}
+                  </Text>
+                </View>
+                <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+                  <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: colors.primary }]} />
+                </View>
+
+                {section.items.map((movie) => {
+                  const done = movie.status === 'watched';
+                  return (
+                    <Pressable
+                      key={movie.id}
+                      style={({ pressed }) => [
+                        styles.row,
+                        { borderBottomColor: colors.border },
+                        pressed && { backgroundColor: colors.accentSoft },
+                      ]}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/watch-item/[itemId]',
+                          params: { itemId: movie.movieId, year: String(section.year) },
+                        })
+                      }
+                      // No button role here: the circle is a nested button.
+                      accessible
+                      accessibilityLabel={`Open ${movie.title}`}
                     >
-                      <View style={styles.posterStatus}>
-                        <StatusPill status={movie.status} small />
-                      </View>
-                    </Poster>
-                    <Text style={[styles.movieTitle, { color: colors.text }]} numberOfLines={2}>
-                      {movie.title}
-                    </Text>
-                  </Pressable>
-                ))}
+                      <Pressable
+                        hitSlop={10}
+                        onPress={() => toggleWatched(section.year, movie)}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: done }}
+                        accessibilityLabel={done ? `Mark ${movie.title} as planned` : `Mark ${movie.title} as watched`}
+                        style={[
+                          styles.check,
+                          done
+                            ? { backgroundColor: STATUS_COLORS.watched, borderColor: STATUS_COLORS.watched }
+                            : { borderColor: colors.textDim },
+                        ]}
+                      >
+                        {done ? <Ionicons name="checkmark" size={13} color="#FFFFFF" /> : null}
+                      </Pressable>
+                      <Text
+                        style={[
+                          styles.movieTitle,
+                          { color: done ? colors.textMuted : colors.text },
+                          done && styles.movieTitleDone,
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {movie.title}
+                      </Text>
+                      {done ? null : (
+                        <Text style={[styles.statusLabel, { color: STATUS_COLORS[movie.status] }]}>
+                          {STATUS_LABELS[movie.status]}
+                        </Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
               </View>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
 
@@ -380,68 +406,69 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   yearBlock: {
-    marginTop: 8,
+    paddingHorizontal: 16,
+    marginTop: 18,
   },
   yearHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
   },
   yearTitle: {
     fontFamily: SERIF,
-    fontSize: 22,
-    lineHeight: 26,
+    fontSize: 24,
+    lineHeight: 28,
     fontWeight: '700',
-    letterSpacing: -0.4,
+    letterSpacing: -0.5,
     fontVariant: ['tabular-nums'],
-  },
-  yearLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth * 2,
   },
   yearCount: {
     fontSize: 12.5,
     fontWeight: '700',
   },
-  progressStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 12,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    height: 40,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#1A2A42',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-  },
-  progressLabel: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    letterSpacing: -0.1,
-  },
   progressTrack: {
-    flex: 1,
-    height: 6,
+    height: 5,
     borderRadius: 3,
     overflow: 'hidden',
+    marginTop: 4,
+    marginBottom: 4,
   },
   progressFill: {
     height: '100%',
     borderRadius: 3,
   },
-  progressPct: {
-    minWidth: 32,
-    textAlign: 'right',
-    fontSize: 12,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 2,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  check: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  movieTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '700',
+    letterSpacing: -0.1,
+  },
+  movieTitleDone: {
+    textDecorationLine: 'line-through',
+  },
+  statusLabel: {
+    fontSize: 11.5,
     fontWeight: '800',
-    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.2,
   },
   loading: {
     paddingTop: SPACE.xl,
@@ -449,33 +476,6 @@ const styles = StyleSheet.create({
   },
   emptyWrap: {
     paddingHorizontal: 12,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 12,
-  },
-  gridItem: {
-    maxWidth: '100%',
-  },
-  posterStatus: {
-    position: 'absolute',
-    left: 6,
-    bottom: 6,
-  },
-  movieTitle: {
-    fontSize: 12,
-    lineHeight: 15,
-    fontWeight: '800',
-    letterSpacing: -0.1,
-    marginTop: 6,
-    minHeight: 30,
-  },
-  movieMeta: {
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: '600',
-    marginTop: 1,
   },
   modalOverlay: {
     flex: 1,

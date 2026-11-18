@@ -16,7 +16,6 @@ import { useLibrary } from '../hooks/useLibrary';
 import { useMovieSearch } from '../hooks/useMovieSearch';
 import { markWatchlistWatched, searchableFilms } from '../lib/library';
 import {
-  deleteViewingEntry,
   resolvePoster,
   saveViewingEntry,
   updateFilmPoster,
@@ -33,7 +32,6 @@ import {
   type DateStyle,
 } from '../lib/format';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { confirmAction, notify } from '../lib/ui';
 import { AppHeader } from '../components/AppHeader';
 import { TheatrePicker } from '../components/TheatrePicker';
 import { CompanionPicker } from '../components/CompanionPicker';
@@ -72,7 +70,6 @@ export default function LogScreen() {
   const [banner, setBanner] = useState<Banner>(null);
   const [searchFocused, setSearchFocused] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   // Fixed date style, for example 17 Nov 2026.
   const dateStyle: DateStyle = 'medium';
 
@@ -157,24 +154,6 @@ export default function LogScreen() {
   );
 
   // Deletes only this viewing record. The film itself, other viewings of it and the watchlist stay.
-  const handleDelete = () => {
-    const id = editingId;
-    if (!id || deleting) return;
-    confirmAction('Delete entry', 'Are you sure you want to delete this diary entry?', async () => {
-      setDeleting(true);
-      try {
-        await deleteViewingEntry(id);
-        await refresh();
-        resetForm();
-        router.navigate('/diary');
-      } catch {
-        notify('Could not delete', 'This diary entry could not be deleted. Please try again.');
-      } finally {
-        setDeleting(false);
-      }
-    });
-  };
-
   const handleSelect = (movie: Movie) => {
     setSelected({
       movieId: movie.id,
@@ -293,23 +272,6 @@ export default function LogScreen() {
               Changes are saved only when you update.
             </Text>
           </View>
-          {editingId ? (
-            <Pressable
-              onPress={handleDelete}
-              disabled={deleting}
-              accessibilityRole="button"
-              accessibilityLabel="Delete diary entry"
-              hitSlop={4}
-              style={({ pressed }) => [
-                styles.back,
-                styles.deleteButton,
-                { backgroundColor: `${colors.rose}14`, borderColor: `${colors.rose}66` },
-                (pressed || deleting) && { opacity: 0.6 },
-              ]}
-            >
-              <Ionicons name="trash-outline" size={19} color={colors.rose} />
-            </Pressable>
-          ) : null}
         </View>
       ) : (
         <AppHeader title="Log a film" subtitle="Capture the film, the theatre, and how it felt." />
@@ -352,6 +314,19 @@ export default function LogScreen() {
           </View>
         ) : null}
 
+        {editingId && selected ? (
+          <Card style={styles.section}>
+            <StepLabel step="1" title="The Film" />
+            <View style={styles.lockedFilm}>
+              <Poster uri={selected.posterPath} title={selected.title} width={104} radius={RADIUS.md} />
+              <View style={styles.resultText}>
+                <Text style={[styles.lockedTitle, { color: colors.text }]} numberOfLines={4}>
+                  {selected.title}
+                </Text>
+              </View>
+            </View>
+          </Card>
+        ) : (
         <Card style={styles.section}>
           <StepLabel step="1" title="The Film" />
           <View
@@ -440,6 +415,7 @@ export default function LogScreen() {
             </Text>
           ) : null}
         </Card>
+        )}
 
         <Card style={styles.section}>
           <StepLabel step="2" title="The Viewing" />
@@ -607,9 +583,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  deleteButton: {
-    shadowOpacity: 0,
-    elevation: 0,
+  lockedFilm: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.lg,
+    paddingTop: SPACE.xs,
+  },
+  lockedTitle: {
+    ...TYPE.title,
+    fontSize: 22,
+    lineHeight: 27,
   },
   title: {
     ...TYPE.title,

@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RADIUS, SERIF, SPACE, TYPE, useTheme } from '../theme';
@@ -21,11 +24,8 @@ import {
 } from '../lib/library';
 import { confirmAction } from '../lib/ui';
 import { PosterPicker } from '../components/PosterPicker';
-import { Chip } from '../components/Chip';
-import { StatusPill } from '../components/StatusPill';
-import { ActionButton } from '../components/ActionButton';
 
-const STATUSES: EntryStatus[] = ['planned', 'watched', 'skipped', 'postponed'];
+const STATUSES: EntryStatus[] = ['planned', 'watched', 'skipped'];
 
 interface WatchItemScreenProps {
   /** Film id of the watchlist item. */
@@ -121,10 +121,16 @@ export default function WatchItemScreen({ itemId, year }: WatchItemScreenProps) 
     });
   };
 
-  const posterWidth = Math.round(Math.min(width * 0.5, 220));
+  // A large poster, kept small enough to leave room for the status bar and the buttons on short phones.
+  const posterWidth = Math.round(Math.min(width * 0.46, 190));
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <LinearGradient
+        colors={['#DDE6F4', 'rgba(250,245,234,0)']}
+        style={styles.glow}
+        pointerEvents="none"
+      />
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} />
@@ -138,57 +144,62 @@ export default function WatchItemScreen({ itemId, year }: WatchItemScreenProps) 
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.content, { paddingVertical: 20 }]}
         >
-          <PosterPicker
-            uri={resolvePoster(library, item.movieId, item.title) ?? item.posterPath}
-            title={item.title}
-            movieId={item.movieId}
-            width={posterWidth}
-            onChange={async (uri) => {
-              await updateFilmPoster(item.movieId, item.title, uri);
-              await refresh();
-            }}
-          />
+          <View style={[styles.posterShadow, { shadowColor: colors.primary }]}>
+            <PosterPicker
+              uri={resolvePoster(library, item.movieId, item.title) ?? item.posterPath}
+              title={item.title}
+              movieId={item.movieId}
+              width={posterWidth}
+              onChange={async (uri) => {
+                await updateFilmPoster(item.movieId, item.title, uri);
+                await refresh();
+              }}
+            />
+          </View>
 
           <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
           <Text style={[styles.year, { color: colors.textMuted }]}>{item.year || year} watchlist</Text>
-          <View style={styles.pill}>
-            <StatusPill status={item.status} />
-          </View>
 
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
-            <Text style={[styles.label, { color: colors.textMuted }]}>Update status</Text>
-            <View style={styles.chips}>
-              {STATUSES.map((status) => (
-                <Chip
-                  compact
+          {/* Status: one floating bar, tap a segment to set it. */}
+          <View style={[styles.statusBar, { backgroundColor: colors.surface, shadowColor: colors.primary }]}>
+            {STATUSES.map((status) => {
+              const active = item.status === status;
+              return (
+                <Pressable
                   key={status}
-                  label={status.charAt(0).toUpperCase() + status.slice(1)}
-                  active={item.status === status}
                   onPress={() => updateStatus(status)}
-                />
-              ))}
-            </View>
-
-            <View style={styles.actions}>
-              <ActionButton
-                compact
-                label={`Move to ${year + 1}`}
-                icon="arrow-forward"
-                variant="ghost"
-                onPress={moveToNextYear}
-                style={styles.action}
-              />
-              <ActionButton
-                compact
-                label="Remove"
-                icon="trash-outline"
-                variant="danger"
-                onPress={removeMovie}
-                style={styles.action}
-              />
-            </View>
-            {busy ? <ActivityIndicator color={colors.accent} style={{ marginTop: SPACE.sm }} /> : null}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`Set status to ${status}`}
+                  style={[styles.segment, active && { backgroundColor: colors.primary }]}
+                >
+                  <Text style={[styles.segmentText, { color: active ? colors.primaryText : colors.textMuted }]}>
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
+
+          <View style={styles.actions}>
+            <Pressable
+              onPress={moveToNextYear}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.action, { borderColor: colors.accent }, pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons name="arrow-forward" size={16} color={colors.accent} />
+              <Text style={[styles.actionLabel, { color: colors.accent }]}>Move to {year + 1}</Text>
+            </Pressable>
+            <Pressable
+              onPress={removeMovie}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.action, { borderColor: colors.rose }, pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons name="trash-outline" size={17} color={colors.rose} />
+              <Text style={[styles.actionLabel, { color: colors.rose }]}>Remove</Text>
+            </Pressable>
+          </View>
+          {busy ? <ActivityIndicator color={colors.accent} style={{ marginTop: SPACE.sm }} /> : null}
         </ScrollView>
       )}
     </View>
@@ -229,38 +240,66 @@ const styles = StyleSheet.create({
     marginTop: 18,
     width: '100%',
   },
+  posterShadow: {
+    shadowOpacity: 0.28,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+    borderRadius: RADIUS.xl,
+  },
+  glow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '55%',
+  },
   year: {
     fontSize: 14,
     fontWeight: '700',
     marginTop: 4,
   },
-  pill: {
-    marginTop: 10,
-    marginBottom: 18,
-  },
-  card: {
+  statusBar: {
     width: '100%',
-    borderRadius: RADIUS.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 14,
-    gap: 10,
-  },
-  label: {
-    ...TYPE.eyebrow,
-    fontSize: 10,
-  },
-  chips: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
+    gap: 4,
+    padding: 5,
+    marginTop: 16,
+    borderRadius: RADIUS.pill,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
+  },
+  segment: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 38,
+    borderRadius: RADIUS.pill,
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   actions: {
+    width: '100%',
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
+    gap: 10,
+    marginTop: 14,
   },
   action: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1.5,
+  },
+  actionLabel: {
+    fontSize: 14,
+    fontWeight: '800',
   },
 });
