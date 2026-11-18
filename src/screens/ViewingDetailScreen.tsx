@@ -80,7 +80,19 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
             />
           </View>
 
-          <Text style={[styles.title, { color: colors.text }]}>{entry.title}</Text>
+          <Text
+            style={[
+              styles.title,
+              { color: colors.text },
+              // Long titles get a smaller size, so the whole name stays visible.
+              entry.title.length > 60 ? { fontSize: 21, lineHeight: 27 } : entry.title.length > 32 ? { fontSize: 24, lineHeight: 30 } : null,
+            ]}
+            numberOfLines={5}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
+            {entry.title}
+          </Text>
           <View style={[styles.rule, { backgroundColor: colors.gold }]} />
 
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
@@ -212,6 +224,9 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     textAlign: 'center',
     marginTop: 20,
+    // Use the full width and break long words instead of running past the screen edge.
+    width: '100%',
+    ...({ wordBreak: 'break-word', overflowWrap: 'anywhere' } as object),
   },
   rule: {
     width: 36,
