@@ -1,12 +1,20 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { AnimatedSplash } from '../components/AnimatedSplash';
+import { useFonts } from 'expo-font';
+import { Righteous_400Regular } from '@expo-google-fonts/righteous';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useTheme } from '../theme';
 
-// Keep the splash screen up for at least this long, so the logo is seen before the app appears.
-const SPLASH_MIN_MS = 2000;
+// The native splash stays up until the title font is ready (at most this long); then the animated splash plays.
+const FONT_WAIT_MS = 1500;
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});
 
 function RootNavigator() {
   const { colors, mode } = useTheme();
@@ -46,16 +54,30 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({ Righteous_400Regular });
+  const [fontWaitOver, setFontWaitOver] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
+
+  // Never wait for the font for more than FONT_WAIT_MS, so a slow font cannot hold the app back.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      SplashScreen.hideAsync().catch(() => {});
-    }, SPLASH_MIN_MS);
+    const timer = setTimeout(() => setFontWaitOver(true), FONT_WAIT_MS);
     return () => clearTimeout(timer);
   }, []);
 
+  // The native splash is plain denim; once the font is ready, the animated splash takes over from it.
+  const ready = fontsLoaded || !!fontError || fontWaitOver;
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
+
+  const finishSplash = useCallback(() => setSplashDone(true), []);
+
   return (
     <ThemeProvider>
-      <RootNavigator />
+      <View style={styles.root}>
+        <RootNavigator />
+        {ready && !splashDone ? <AnimatedSplash onDone={finishSplash} /> : null}
+      </View>
     </ThemeProvider>
   );
 }

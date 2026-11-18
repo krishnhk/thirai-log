@@ -1,10 +1,11 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '../theme';
 
-// The ThiraiLog reel mark, tinted to the current accent, plus a live wordmark.
-const MARK = require('../../assets/logo/mark.png');
-// Source aspect ratio of mark.png.
+// The ThiraiLog lens mark in two parts (lid and iris), so each can have its own colour,
+// plus a live wordmark in the Righteous rounded display font.
+const LID = require('../../assets/logo/mark-lid.png');
+const IRIS = require('../../assets/logo/mark-iris.png');
+// Source aspect ratio of the mark images.
 const ASPECT = 152 / 121;
 
 interface BrandMarkProps {
@@ -12,34 +13,27 @@ interface BrandMarkProps {
   height?: number;
 }
 
-// Light theme: "thirai" dark navy, "log" a lighter blue. The mark matches "log".
-const LIGHT_THIRAI_DARK = '#1A2A42';
-const LIGHT_LOG_LIGHT = '#6E96CE';
+// Navy lid and "thirai", lighter denim iris and "log".
+const NAVY = '#1A2A42';
+const DENIM_LIGHT = '#6E96CE';
 
 export function BrandMark({ height = 30 }: BrandMarkProps) {
-  const { colors, mode } = useTheme();
-  const light = mode === 'light';
-  const markTint = light ? LIGHT_LOG_LIGHT : colors.accent;
-  const wordColor = light ? LIGHT_THIRAI_DARK : colors.text;
-  const logColor = light ? LIGHT_LOG_LIGHT : colors.accent;
+  const width = height * ASPECT;
 
-  const logo = (
+  return (
     <View style={styles.row}>
-      <Image
-        source={MARK}
-        style={{ width: height * ASPECT, height }}
-        resizeMode="contain"
-        tintColor={markTint}
-        accessibilityLabel="ThiraiLog"
-      />
+      <View style={{ width, height }} accessible accessibilityLabel="ThiraiLog">
+        <Image source={LID} style={[styles.layer, { width, height }]} resizeMode="contain" tintColor={NAVY} />
+        <Image source={IRIS} style={[styles.layer, { width, height }]} resizeMode="contain" tintColor={DENIM_LIGHT} />
+      </View>
       <Text
         allowFontScaling={false}
         style={[
           styles.wordmark,
           {
-            color: wordColor,
+            color: NAVY,
             fontSize: Math.round(height * 0.64),
-            // Line box equal to the font size, so the text centres on the mark instead of sitting low.
+            // Line box slightly taller than the font size, so the text centres on the mark.
             lineHeight: Math.round(height * 0.64 * 1.2),
             // Centre the glyphs inside their line box, so the wordmark lines up with the mark and button.
             includeFontPadding: false,
@@ -48,12 +42,10 @@ export function BrandMark({ height = 30 }: BrandMarkProps) {
         ]}
       >
         thirai
-        <Text style={{ color: logColor }}>log</Text>
+        <Text style={{ color: DENIM_LIGHT }}>log</Text>
       </Text>
     </View>
   );
-
-  return logo;
 }
 
 const styles = StyleSheet.create({
@@ -62,8 +54,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
+  layer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
   wordmark: {
-    fontWeight: '800',
-    letterSpacing: -0.9,
+    fontFamily: 'Righteous_400Regular',
+    letterSpacing: 0.3,
   },
 });
