@@ -77,7 +77,7 @@ export default function DiaryScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <AppHeader />
+      <AppHeader title="Diary" subtitle="Every film you have watched, by year." />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

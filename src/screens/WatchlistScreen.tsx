@@ -138,7 +138,7 @@ export default function WatchlistScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <AppHeader />
+      <AppHeader title="Watchlist" subtitle="Films you plan to watch, by year." />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

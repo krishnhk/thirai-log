@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { RADIUS, SERIF, TYPE, useTheme } from '../theme';
+import { RADIUS, SERIF, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { searchableFilms } from '../lib/library';
 import { exportBackup } from '../lib/backup';
@@ -19,16 +19,11 @@ export default function LibraryScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <AppHeader />
+      <AppHeader title="Library" subtitle="Your theatres, films, numbers and backup." />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <Text style={[styles.title, { color: colors.text }]}>Library</Text>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Your theatres, films, numbers and backup.
-        </Text>
-
         <View style={styles.grid}>
           <Tile
             icon="location"
@@ -105,18 +100,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 720,
     alignSelf: 'center',
-  },
-  title: {
-    ...TYPE.title,
-    fontSize: 26,
-    lineHeight: 31,
-    paddingHorizontal: 4,
-  },
-  subtitle: {
-    ...TYPE.small,
-    paddingHorizontal: 4,
-    marginTop: 2,
-    marginBottom: 14,
   },
   grid: {
     flexDirection: 'row',

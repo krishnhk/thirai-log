@@ -22,7 +22,7 @@
         {
           "image": "./assets/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#2B4670"
+          "backgroundColor": "#E4D7BD"
         }
       ],
       "expo-sharing",

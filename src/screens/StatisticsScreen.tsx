@@ -117,7 +117,7 @@ export default function StatisticsScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <AppHeader />
+      <AppHeader title="Statistics" subtitle="Your viewing, in numbers." />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

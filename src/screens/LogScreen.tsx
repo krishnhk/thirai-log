@@ -299,7 +299,7 @@ export default function LogScreen() {
           ) : null}
         </View>
       ) : (
-        <AppHeader />
+        <AppHeader title="Log a film" subtitle="Capture the film, the theatre, and how it felt." />
       )}
 
       <ScrollView
@@ -313,15 +313,6 @@ export default function LogScreen() {
           alignSelf: 'center',
         }}
       >
-        {!editEntryId ? (
-      <View style={styles.titleBlock}>
-        <Text style={[styles.title, { color: colors.text }]}>Log a film</Text>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Capture the film, the theatre, and how it felt.
-        </Text>
-      </View>
-        ) : null}
-
         {banner ? (
           <View
             style={[
@@ -605,11 +596,6 @@ const styles = StyleSheet.create({
   deleteButton: {
     shadowOpacity: 0,
     elevation: 0,
-  },
-  titleBlock: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 12,
   },
   title: {
     ...TYPE.title,
