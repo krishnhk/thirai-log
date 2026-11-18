@@ -3,14 +3,14 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { INPUT_RESET, RADIUS, SPACE, TYPE, useTheme } from '../theme';
+import { INPUT_RESET, RADIUS, SERIF, SPACE, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { filmYear, resolvePoster, searchableFilms } from '../lib/library';
 import { Poster } from '../components/Poster';
 import { EmptyState } from '../components/EmptyState';
 import { ActionButton } from '../components/ActionButton';
 
-/** Lists every film in the database. Tap one to edit its title, year or poster. */
+/** Lists every film in the database, grouped by release year. Tap one to open it, or the pencil to edit. */
 export default function FilmsScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -26,6 +26,18 @@ export default function FilmsScreen() {
     const needle = query.trim().toLowerCase();
     return needle ? all.filter((film) => film.title.toLowerCase().includes(needle)) : all;
   }, [library, query]);
+
+  // Newest release year first, films without a year last. Titles stay A to Z inside each year.
+  const groups = useMemo(() => {
+    const byYear = new Map<string, typeof films>();
+    films.forEach((film) => {
+      const key = filmYear(film) || '';
+      byYear.set(key, [...(byYear.get(key) ?? []), film]);
+    });
+    return [...byYear.entries()]
+      .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : Number(b) - Number(a)))
+      .map(([year, items]) => ({ year, items }));
+  }, [films]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -74,38 +86,60 @@ export default function FilmsScreen() {
           </View>
         ) : (
           <View style={styles.pad}>
-            {films.map((film) => {
-              const year = filmYear(film);
-              return (
-                <Pressable
-                  key={film.id}
-                  onPress={() => router.push({ pathname: '/add-movie', params: { id: film.id } })}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Edit ${film.title}`}
-                  style={({ pressed }) => [
-                    styles.row,
-                    { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-                    pressed && { opacity: 0.8 },
-                  ]}
-                >
-                  <Poster
-                    uri={resolvePoster(library, film.id, film.title) ?? film.posterPath}
-                    title={film.title}
-                    width={40}
-                    radius={RADIUS.md}
-                  />
-                  <View style={styles.rowText}>
-                    <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={3}>
-                      {film.title}
-                    </Text>
-                    {year ? <Text style={[styles.rowMeta, { color: colors.textMuted }]}>{year}</Text> : null}
-                  </View>
-                  <View style={[styles.editBadge, { backgroundColor: colors.surfaceAlt }]}>
-                    <Ionicons name="pencil" size={14} color={colors.coralInk} />
-                  </View>
-                </Pressable>
-              );
+            {groups.map((group) => (
+              <View key={group.year || 'none'} style={styles.yearBlock}>
+                <View style={styles.yearHeader}>
+                  <Text style={[styles.yearTitle, { color: colors.text }]}>
+                    {group.year || 'No year'}
+                  </Text>
+                  <View style={[styles.yearLine, { backgroundColor: colors.border }]} />
+                  <Text style={[styles.yearCount, { color: colors.textMuted }]}>
+                    {group.items.length} {group.items.length === 1 ? 'film' : 'films'}
+                  </Text>
+                </View>
+                {group.items.map((film) => {
+                  return (
+                    <Pressable
+                      key={film.id}
+                      onPress={() => router.push({ pathname: '/film/[filmId]', params: { filmId: film.id } })}
+                      // No button role here: the Edit control below is a nested button.
+                      accessible
+                      accessibilityLabel={`Open ${film.title}`}
+                      style={({ pressed }) => [
+                        styles.row,
+                        { backgroundColor: colors.surface, borderColor: colors.borderSoft },
+                        pressed && { opacity: 0.8 },
+                      ]}
+                    >
+                      <Poster
+                        uri={resolvePoster(library, film.id, film.title) ?? film.posterPath}
+                        title={film.title}
+                        width={40}
+                        radius={RADIUS.md}
+                      />
+                      <View style={styles.rowText}>
+                        <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={3}>
+                          {film.title}
+                        </Text>
+                          </View>
+                      <Pressable
+                        hitSlop={8}
+                        onPress={() => router.push({ pathname: '/add-movie', params: { id: film.id } })}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${film.title}`}
+                        style={({ pressed }) => [
+                          styles.editBadge,
+                          { backgroundColor: colors.surfaceAlt },
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Ionicons name="pencil" size={14} color={colors.coralInk} />
+                      </Pressable>
+                    </Pressable>
+                  );
             })}
+              </View>
+            ))}
           </View>
         )}
       </ScrollView>
@@ -114,6 +148,32 @@ export default function FilmsScreen() {
 }
 
 const styles = StyleSheet.create({
+  yearBlock: {
+    marginTop: 6,
+  },
+  yearHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+  },
+  yearTitle: {
+    fontFamily: SERIF,
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+    fontVariant: ['tabular-nums'],
+  },
+  yearLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth * 2,
+  },
+  yearCount: {
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
   root: {
     flex: 1,
   },
