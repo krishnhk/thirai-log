@@ -21,7 +21,6 @@ export function BrandMark({ height = 30 }: BrandMarkProps) {
   return (
     <Text
       key={fontReady ? 'font' : 'fallback'}
-      numberOfLines={1}
       allowFontScaling={false}
       accessibilityLabel="ThiraiLog"
       style={[
@@ -29,6 +28,10 @@ export function BrandMark({ height = 30 }: BrandMarkProps) {
         {
           color: NAVY,
           fontSize,
+          // Fixed width with room to spare: Android can measure the text with the fallback font and then
+          // cut it off ("thirail...") once the wider rounded font loads. The title is left-aligned, so the
+          // extra space is not visible.
+          width: Math.round(fontSize * 6),
           // Tall enough line box that Android does not clip the descender of the "g".
           lineHeight: Math.round(fontSize * 1.7),
           // Keep Android's font padding (the font has a deep descender) and add a little room at the bottom and

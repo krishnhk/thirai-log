@@ -57,17 +57,6 @@ export function companionStats(entries: CountableViewing[], year?: number): Comp
   return result;
 }
 
-/**
- * "5 viewings · 4 films", or null when the two numbers are equal and the line would only
- * repeat the count.
- */
-export function viewingsFilmsNote(group: CompanionGroup): string | null {
-  if (group.films === group.viewings) return null;
-  const viewings = `${group.viewings} ${group.viewings === 1 ? 'viewing' : 'viewings'}`;
-  const films = `${group.films} ${group.films === 1 ? 'film' : 'films'}`;
-  return `${viewings} · ${films}`;
-}
-
 export const COMPANION_LABELS: Record<Companion, string> = {
   alone: 'Solo',
   company: 'Group',

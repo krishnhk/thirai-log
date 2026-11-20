@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -6,17 +6,22 @@ import {
   StyleSheet,
   Text,
   View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { SERIF, SPACE, TYPE, useTheme } from '../theme';
+import { RADIUS, SERIF, SPACE, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
-import type { ViewingEntry } from '../lib/library';
+import { resolvePoster, type ViewingEntry } from '../lib/library';
 import { MONTH_NAMES, toDate } from '../lib/format';
 import { theatreDisplay } from '../lib/theatres';
 import { COMPANION_LABELS } from '../lib/stats';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
+import { Poster } from '../components/Poster';
 
 interface MonthGroup {
   key: string;
@@ -75,6 +80,25 @@ export default function DiaryScreen() {
 
   const hasEntries = library.entries.length > 0;
 
+  // The year bar pinned under the summary. It is drawn over the list (not a native sticky header), so
+  // it always sits flush under the summary and rows never show in a gap above it. It appears once the
+  // first year heading has scrolled away and switches year as each next heading reaches the top.
+  const [pinnedYear, setPinnedYear] = useState<number | null>(null);
+  const yearTops = useRef<Record<number, number>>({});
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = event.nativeEvent.contentOffset.y;
+    let current: number | null = null;
+    if (yearGroups.length > 0 && y > (yearTops.current[yearGroups[0].year] ?? 0) + 1) {
+      yearGroups.forEach((group) => {
+        const top = yearTops.current[group.year];
+        if (top !== undefined && top <= y + 1) current = group.year;
+      });
+    }
+    setPinnedYear((previous) => (previous === current ? previous : current));
+  };
+  const pinned = yearGroups.find((group) => group.year === pinnedYear);
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <AppHeader title="Diary" subtitle="Every film you have watched, by year." />
@@ -86,10 +110,11 @@ export default function DiaryScreen() {
         </View>
       ) : null}
 
+      <View style={styles.listWrap}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        // Each year heading sticks to the top while its months scroll; the next year's heading replaces it.
-        stickyHeaderIndices={hasEntries && !loading ? yearGroups.map((_, index) => index * 2) : undefined}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={{
           paddingBottom: 36,
           width: '100%',
@@ -115,21 +140,16 @@ export default function DiaryScreen() {
             <View
               key={`year-${yearGroup.year}`}
               style={[styles.stickyYear, { backgroundColor: colors.background }]}
+              onLayout={(event: LayoutChangeEvent) => {
+                yearTops.current[yearGroup.year] = event.nativeEvent.layout.y;
+              }}
             >
-              <View style={styles.yearHeader}>
-                <Text style={[styles.yearTitle, { color: colors.text }]}>{yearGroup.year}</Text>
-                <Text style={[styles.yearCount, { color: colors.textMuted }]}>
-                  {yearGroup.count} {yearGroup.count === 1 ? 'visit' : 'visits'}
-                </Text>
-              </View>
-              <View style={[styles.yearRule, { backgroundColor: colors.text }]} />
+              <YearHeading year={yearGroup.year} count={yearGroup.count} />
             </View>,
             <View key={`months-${yearGroup.year}`} style={styles.monthsWrap}>
                 {yearGroup.months.map((monthGroup) => (
-                  <View
-                    key={monthGroup.key}
-                    style={[styles.monthBlock, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                  >
+                  <View key={monthGroup.key} style={styles.monthShadow}>
+                  <View style={[styles.monthBlock, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <Text style={[styles.monthName, { color: colors.textMuted }]}>
                       {MONTH_NAMES[monthGroup.month].toUpperCase()}
                     </Text>
@@ -162,6 +182,13 @@ export default function DiaryScreen() {
                               {WEEKDAYS[date.getDay()]}
                             </Text>
                           </View>
+
+                          <Poster
+                            uri={resolvePoster(library, entry.movieId, entry.title)}
+                            title={entry.title}
+                            width={42}
+                            radius={RADIUS.sm}
+                          />
 
                           <View style={styles.body}>
                             <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
@@ -207,12 +234,44 @@ export default function DiaryScreen() {
                       );
                     })}
                   </View>
+                  </View>
                 ))}
             </View>,
           ])
         )}
       </ScrollView>
+
+      {pinned ? (
+        <View style={[styles.pinnedYear, { backgroundColor: colors.background }]} pointerEvents="none">
+          <View style={styles.pinnedInner}>
+            <YearHeading year={pinned.year} count={pinned.count} />
+          </View>
+          {/* Rows dissolve softly under the pinned heading instead of being cut off at its line. */}
+          <LinearGradient
+            colors={[colors.background, `${colors.background}00`]}
+            style={styles.yearFade}
+            pointerEvents="none"
+          />
+        </View>
+      ) : null}
+      </View>
     </View>
+  );
+}
+
+/** The year, its visit count and the dark rule under them. Used in the list and in the pinned bar. */
+function YearHeading({ year, count }: { year: number; count: number }) {
+  const { colors } = useTheme();
+  return (
+    <>
+      <View style={styles.yearHeader}>
+        <Text style={[styles.yearTitle, { color: colors.text }]}>{year}</Text>
+        <Text style={[styles.yearCount, { color: colors.textMuted }]}>
+          {count} {count === 1 ? 'visit' : 'visits'}
+        </Text>
+      </View>
+      <View style={[styles.yearRule, { backgroundColor: colors.text }]} />
+    </>
   );
 }
 
@@ -228,13 +287,15 @@ function SummaryStat({
   const { colors } = useTheme();
   return (
     <View style={styles.stat} accessibilityLabel={`${label}: ${value}. ${hint}`}>
-      <Text style={[styles.statLabel, { color: colors.textMuted }]} numberOfLines={1}>
-        {label}
-      </Text>
+      <View style={styles.statText}>
+        <Text style={[styles.statLabel, { color: colors.textMuted }]} numberOfLines={1}>
+          {label}
+        </Text>
+        <Text style={[styles.statHint, { color: colors.textMuted }]} numberOfLines={1}>
+          {hint}
+        </Text>
+      </View>
       <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
-      <Text style={[styles.statHint, { color: colors.textMuted }]} numberOfLines={1}>
-        {hint}
-      </Text>
     </View>
   );
 }
@@ -252,23 +313,21 @@ const styles = StyleSheet.create({
     paddingTop: SPACE.sm,
   },
   summary: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginHorizontal: 12,
-    marginTop: 10,
-    paddingVertical: 10,
-    borderRadius: 20,
+    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  summaryDivider: {
-    width: StyleSheet.hairlineWidth * 2,
-    height: 48,
-  },
   stat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statText: {
     flex: 1,
     minWidth: 0,
-    alignItems: 'center',
-    paddingHorizontal: 8,
   },
   statLabel: {
     ...TYPE.eyebrow,
@@ -277,21 +336,46 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: SERIF,
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 24,
+    lineHeight: 28,
     fontWeight: '700',
-    letterSpacing: -0.6,
+    letterSpacing: -0.5,
     fontVariant: ['tabular-nums'],
   },
   statHint: {
-    fontSize: 11.5,
+    fontSize: 11,
     lineHeight: 14,
     fontWeight: '600',
   },
+  listWrap: {
+    flex: 1,
+  },
+  pinnedYear: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 2,
+    zIndex: 5,
+  },
+  pinnedInner: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+  },
   stickyYear: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 8,
     paddingBottom: 2,
+  },
+  yearFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '100%',
+    height: 18,
   },
   monthsWrap: {
     paddingHorizontal: 16,
@@ -322,8 +406,16 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     marginHorizontal: 4,
   },
-  monthBlock: {
+  monthShadow: {
     marginTop: 10,
+    borderRadius: 18,
+    shadowColor: '#1A2A42',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  monthBlock: {
     paddingHorizontal: 12,
     paddingBottom: 2,
     borderRadius: 18,
@@ -369,23 +461,25 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   title: {
-    flex: 1,
     minWidth: 0,
     fontSize: 15,
     lineHeight: 19,
     fontWeight: '800',
     letterSpacing: -0.2,
+    // Android adds extra space above and below text by default, which widens the gap to the line below.
+    includeFontPadding: false,
   },
   line: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginTop: 3,
+    marginTop: 2,
   },
   lineText: {
     flexShrink: 1,
     fontSize: 12.5,
     lineHeight: 16,
+    includeFontPadding: false,
     fontWeight: '500',
     opacity: 0.85,
   },

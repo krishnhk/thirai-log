@@ -6,7 +6,7 @@ import { SPACE, RADIUS, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { resolvePoster, type ViewingEntry } from '../lib/library';
 import { formatDate, monthShort, MONTH_NAMES, toDate } from '../lib/format';
-import { companionStats, viewingsFilmsNote } from '../lib/stats';
+import { companionStats } from '../lib/stats';
 import { AppHeader } from '../components/AppHeader';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
@@ -21,15 +21,12 @@ function MiniStat({
   icon,
   tint,
   hint,
-  note,
 }: {
   label: string;
   value: string | number;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   tint: string;
   hint: string;
-  /** Optional extra line under the hint. */
-  note?: string | null;
 }) {
   const { colors } = useTheme();
   return (
@@ -45,11 +42,6 @@ function MiniStat({
         <Text style={[styles.miniHint, { color: colors.textMuted }]} numberOfLines={1}>
           {hint}
         </Text>
-        {note ? (
-          <Text style={[styles.miniHint, { color: colors.textMuted }]} numberOfLines={2}>
-            {note}
-          </Text>
-        ) : null}
       </View>
     </View>
   );
@@ -151,7 +143,6 @@ export default function StatisticsScreen() {
                   icon="person-outline"
                   tint={colors.primary}
                   hint="all years"
-                  note={viewingsFilmsNote(companion.alone)}
                 />
                 <MiniStat
                   label="Group"
@@ -159,7 +150,6 @@ export default function StatisticsScreen() {
                   icon="people-outline"
                   tint={colors.teal}
                   hint="all years"
-                  note={viewingsFilmsNote(companion.company)}
                 />
               </View>
               {companion.unanswered > 0 ? (

@@ -52,6 +52,8 @@ export default function WatchlistScreen() {
   const [listQuery, setListQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState('');
+  // The year the film is added to. Starts as the current year; the user can type any other year.
+  const [addYear, setAddYear] = useState(String(new Date().getFullYear()));
   const [busy, setBusy] = useState(false);
 
   // Every year that has films, newest first. The search box filters the films inside each year.
@@ -62,9 +64,11 @@ export default function WatchlistScreen() {
         year: list.year,
         total: list.movies.length,
         watched: list.movies.filter((movie) => movie.status === 'watched').length,
-        items: needle
+        // Films inside each year are listed alphabetically.
+        items: (needle
           ? list.movies.filter((movie) => movie.title.toLowerCase().includes(needle))
-          : list.movies,
+          : [...list.movies]
+        ).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true })),
       }))
       .filter((section) => section.items.length > 0)
       .sort((a, b) => b.year - a.year);
@@ -108,16 +112,22 @@ export default function WatchlistScreen() {
   const closeAdd = () => {
     setAddOpen(false);
     setSearch('');
+    setAddYear(String(currentYear));
   };
 
   const addMovie = async (movie: Movie) => {
     if (busy) return;
-    // Films are added to the current year's list, so a film released later than that cannot be added yet.
+    const targetYear = Number(addYear);
+    if (!/^\d{4}$/.test(addYear.trim()) || targetYear < 1900 || targetYear > currentYear + 10) {
+      notify('Check the year', `Enter a year between 1900 and ${currentYear + 10} for the watchlist.`);
+      return;
+    }
+    // A film cannot be on a watchlist for a year before it was released.
     const releaseYear = movie.releaseDate ? Number(yearOf(movie.releaseDate)) : NaN;
-    if (Number.isFinite(releaseYear) && releaseYear > currentYear) {
+    if (Number.isFinite(releaseYear) && releaseYear > targetYear) {
       notify(
         'Not released yet',
-        `“${movie.title}” is a ${releaseYear} film, so it cannot be added to your ${currentYear} watchlist.`
+        `“${movie.title}” is a ${releaseYear} film, so it cannot be added to your ${targetYear} watchlist.`
       );
       return;
     }
@@ -125,11 +135,11 @@ export default function WatchlistScreen() {
     try {
       let added = false;
       await mutateAnnualLists((lists) => {
-        const index = lists.findIndex((list) => list.year === currentYear);
+        const index = lists.findIndex((list) => list.year === targetYear);
         const baseList: AnnualList =
           index >= 0
             ? lists[index]
-            : { id: `year-${currentYear}`, year: currentYear, title: `${currentYear} Watchlist`, movies: [] };
+            : { id: `year-${targetYear}`, year: targetYear, title: `${targetYear} Watchlist`, movies: [] };
 
         // Already on a watchlist (this year or any other): do not add it a second time.
         if (lists.some((list) => list.movies.some((item) => item.movieId === movie.id))) return lists;
@@ -139,7 +149,7 @@ export default function WatchlistScreen() {
           movieId: movie.id,
           title: movie.title,
           posterPath: movie.posterPath,
-          year: currentYear,
+          year: targetYear,
           status: 'planned',
           addedAt: new Date().toISOString(),
         };
@@ -237,6 +247,7 @@ export default function WatchlistScreen() {
 
                 {section.items.map((movie) => {
                   const done = movie.status === 'watched';
+                  const skipped = movie.status === 'skipped';
                   return (
                     <Pressable
                       key={movie.id}
@@ -265,10 +276,13 @@ export default function WatchlistScreen() {
                           styles.check,
                           done
                             ? { backgroundColor: STATUS_COLORS.watched, borderColor: STATUS_COLORS.watched }
-                            : { borderColor: colors.textDim },
+                            : skipped
+                              ? { borderColor: STATUS_COLORS.skipped }
+                              : { borderColor: colors.textDim },
                         ]}
                       >
                         {done ? <Ionicons name="checkmark" size={13} color="#FFFFFF" /> : null}
+                        {skipped ? <Ionicons name="close" size={14} color={STATUS_COLORS.skipped} /> : null}
                       </Pressable>
                       <Text
                         style={[
@@ -312,11 +326,27 @@ export default function WatchlistScreen() {
           >
             <View style={styles.sheetHeader}>
               <View style={styles.flex}>
-                <Text style={[styles.sheetTitle, { color: colors.text }]}>Add to {currentYear}</Text>
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>Add to watchlist</Text>
               </View>
               <Pressable onPress={closeAdd} accessibilityLabel="Close" hitSlop={8}>
                 <Ionicons name="close" size={22} color={colors.textMuted} />
               </Pressable>
+            </View>
+
+            <View style={styles.yearField}>
+              <Text style={[styles.yearFieldLabel, { color: colors.textMuted }]}>Watchlist year</Text>
+              <TextInput
+                value={addYear}
+                onChangeText={(text) => setAddYear(text.replace(/[^0-9]/g, '').slice(0, 4))}
+                keyboardType="number-pad"
+                maxLength={4}
+                accessibilityLabel="Watchlist year"
+                style={[
+                  styles.yearInput,
+                  INPUT_RESET,
+                  { color: colors.text, backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+                ]}
+              />
             </View>
 
             <View style={[styles.searchRow, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
@@ -537,6 +567,26 @@ const styles = StyleSheet.create({
   sheetSubtitle: {
     ...TYPE.caption,
     marginTop: 2,
+  },
+  yearField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACE.sm,
+  },
+  yearFieldLabel: {
+    ...TYPE.small,
+    fontWeight: '700',
+  },
+  yearInput: {
+    ...TYPE.body,
+    width: 88,
+    height: 38,
+    textAlign: 'center',
+    fontWeight: '800',
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    fontVariant: ['tabular-nums'],
   },
   searchRow: {
     flexDirection: 'row',
