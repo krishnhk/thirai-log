@@ -26,6 +26,8 @@ export interface ViewingEntry {
   theatreId?: string;
   companion?: Companion;
   rating?: number;
+  /** What the user spent on the viewing: just for themselves, or in total for the group (optional). */
+  price?: number;
   notes?: string;
   status?: EntryStatus;
   createdAt?: string;
@@ -75,6 +77,7 @@ function normalizeEntry(raw: any): ViewingEntry {
     companion: raw?.companion === 'alone' || raw?.companion === 'company' ? raw.companion : undefined,
     rating:
       typeof raw?.rating === 'number' && Number.isFinite(raw.rating) ? raw.rating : undefined,
+    price: typeof raw?.price === 'number' && Number.isFinite(raw.price) && raw.price >= 0 ? raw.price : undefined,
     notes: raw?.notes || undefined,
     status: raw?.status ? normalizeStatus(raw.status) : undefined,
     createdAt: raw?.createdAt || undefined,

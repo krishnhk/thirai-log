@@ -46,12 +46,6 @@ export default function DiaryScreen() {
   const { colors } = useTheme();
   const { library, loading } = useLibrary();
 
-  // Different films by name: the same film logged twice counts once.
-  const uniqueTitles = useMemo(
-    () => new Set(library.entries.map((entry) => entry.title.trim().toLowerCase())).size,
-    [library.entries]
-  );
-
   // Every year, newest first: each year holds its months, each month holds its viewings.
   const yearGroups = useMemo(() => {
     const sorted = [...library.entries].sort(
@@ -103,13 +97,7 @@ export default function DiaryScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <AppHeader title="Diary" subtitle="Every film you have watched, by year." />
 
-      {/* The page header and the summary stay put; only the years below scroll. */}
-      {!loading && hasEntries ? (
-        <View style={[styles.summary, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
-          <SummaryStat label="Total movies" value={uniqueTitles} hint="Unique titles" />
-        </View>
-      ) : null}
-
+      {/* The page header stays put; only the years below scroll. */}
       <View style={styles.listWrap}>
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -275,31 +263,6 @@ function YearHeading({ year, count }: { year: number; count: number }) {
   );
 }
 
-function SummaryStat({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: number;
-  hint: string;
-}) {
-  const { colors } = useTheme();
-  return (
-    <View style={styles.stat} accessibilityLabel={`${label}: ${value}. ${hint}`}>
-      <View style={styles.statText}>
-        <Text style={[styles.statLabel, { color: colors.textMuted }]} numberOfLines={1}>
-          {label}
-        </Text>
-        <Text style={[styles.statHint, { color: colors.textMuted }]} numberOfLines={1}>
-          {hint}
-        </Text>
-      </View>
-      <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -311,41 +274,6 @@ const styles = StyleSheet.create({
   emptyWrap: {
     paddingHorizontal: 12,
     paddingTop: SPACE.sm,
-  },
-  summary: {
-    marginHorizontal: 12,
-    marginTop: 4,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  stat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  statLabel: {
-    ...TYPE.eyebrow,
-    fontSize: 9.5,
-    letterSpacing: 0.8,
-  },
-  statValue: {
-    fontFamily: SERIF,
-    fontSize: 24,
-    lineHeight: 28,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
-  },
-  statHint: {
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: '600',
   },
   listWrap: {
     flex: 1,

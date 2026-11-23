@@ -1,9 +1,9 @@
 import { Platform } from 'react-native';
-import { File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { DATA_FILES, readJson } from './storage';
+import { DATA_FILES, readJson, updateJson } from './storage';
 import { isLocalPoster } from './posters';
-import { notify } from './ui';
+import { confirmAction, notify } from './ui';
 
 interface PosterHolder {
   posterPath?: string;
@@ -97,5 +97,236 @@ export async function exportBackup(): Promise<void> {
     });
   } catch {
     notify('Export failed', 'Could not export your data.');
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Import
+// ---------------------------------------------------------------------------------------------
+
+type AnyRecord = Record<string, any>;
+
+interface BackupImages {
+  [path: string]: { mime?: string; base64?: string };
+}
+
+interface BackupFile {
+  viewingEntries?: unknown;
+  watchlistMovies?: unknown;
+  annualWatchlists?: unknown;
+  movies?: unknown;
+  theatres?: unknown;
+  images?: BackupImages;
+}
+
+const asArray = (value: unknown): AnyRecord[] =>
+  Array.isArray(value) ? value.filter((item) => item && typeof item === 'object') : [];
+
+const lower = (value: unknown) => String(value ?? '').trim().toLowerCase();
+
+/** Lets the user pick a .json file and returns its text, or null when nothing was picked. */
+async function pickBackupText(): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        resolve(file ? await file.text() : null);
+      };
+      input.addEventListener('cancel', () => resolve(null));
+      input.click();
+    });
+  }
+  // Loaded on demand, like the image picker, so the web preview does not need the native module.
+  const DocumentPicker = await import('expo-document-picker');
+  const result = await DocumentPicker.getDocumentAsync({
+    type: ['application/json', 'text/plain', '*/*'],
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (result.canceled || !result.assets?.length) return null;
+  return new File(result.assets[0].uri).text();
+}
+
+/** Saves the poster images from a backup on this device and returns old path -> new path. */
+function restoreImages(images: BackupImages | undefined): Record<string, string> {
+  const map: Record<string, string> = {};
+  if (Platform.OS === 'web' || !images) return map;
+  try {
+    const dir = new Directory(Paths.document, 'posters');
+    if (!dir.exists) dir.create({ intermediates: true });
+    let index = 0;
+    for (const [oldPath, image] of Object.entries(images)) {
+      if (!image?.base64) continue;
+      try {
+        const extension = image.mime === 'image/png' ? 'png' : 'jpg';
+        const file = new File(dir, `import-${Date.now()}-${index++}.${extension}`);
+        file.write(image.base64, { encoding: 'base64' });
+        map[oldPath] = file.uri;
+      } catch {
+        // One unreadable image is skipped; the rest of the import continues.
+      }
+    }
+  } catch {
+    // Without a posters folder, films keep their old poster paths (and show the placeholder).
+  }
+  return map;
+}
+
+export interface ImportSummary {
+  viewings: number;
+  films: number;
+  theatres: number;
+  watchlistFilms: number;
+}
+
+/**
+ * Adds the data from a backup to what is already on this device. Anything that is already here (same id,
+ * or the same theatre, or a film already on a watchlist) is kept as it is and not duplicated.
+ */
+async function applyBackup(data: BackupFile): Promise<ImportSummary> {
+  const summary: ImportSummary = { viewings: 0, films: 0, theatres: 0, watchlistFilms: 0 };
+  const posterMap = restoreImages(data.images);
+  const remap = (path?: string) => (path && posterMap[path] ? posterMap[path] : path);
+
+  // Theatres first, so viewings can point at the right ones.
+  const theatreIds: Record<string, string> = {};
+  await updateJson<AnyRecord[]>(DATA_FILES.theatres, [], (current) => {
+    const list = Array.isArray(current) ? [...current] : [];
+    asArray(data.theatres).forEach((incoming) => {
+      if (!incoming.id || !incoming.name) return;
+      const sameId = list.find((item) => item.id === incoming.id);
+      const sameName = list.find(
+        (item) => lower(item.name) === lower(incoming.name) && lower(item.district) === lower(incoming.district)
+      );
+      const existing = sameId ?? sameName;
+      if (existing) {
+        theatreIds[incoming.id] = existing.id;
+        return;
+      }
+      theatreIds[incoming.id] = incoming.id;
+      list.push(incoming);
+      summary.theatres += 1;
+    });
+    return list;
+  });
+
+  await updateJson<AnyRecord[]>(DATA_FILES.movies, [], (current) => {
+    const list = Array.isArray(current) ? [...current] : [];
+    asArray(data.movies).forEach((incoming) => {
+      if (!incoming.id) return;
+      const posterPath = remap(incoming.posterPath);
+      const index = list.findIndex((item) => item.id === incoming.id);
+      if (index >= 0) {
+        // Keep the film as it is; only fill in a missing poster.
+        if (!list[index].posterPath && posterPath) list[index] = { ...list[index], posterPath };
+        return;
+      }
+      list.push({ ...incoming, posterPath });
+      summary.films += 1;
+    });
+    return list;
+  });
+
+  await updateJson<AnyRecord[]>(DATA_FILES.viewingEntries, [], (current) => {
+    const list = Array.isArray(current) ? [...current] : [];
+    const ids = new Set(list.map((item) => item.id));
+    asArray(data.viewingEntries).forEach((incoming) => {
+      if (!incoming.id || ids.has(incoming.id)) return;
+      ids.add(incoming.id);
+      const theatreId = incoming.theatreId ? theatreIds[incoming.theatreId] ?? incoming.theatreId : undefined;
+      list.push({ ...incoming, theatreId });
+      summary.viewings += 1;
+    });
+    return list;
+  });
+
+  // One film can be on only one year's watchlist, so films already on any list are skipped.
+  await updateJson<AnyRecord[]>(DATA_FILES.annualWatchlists, [], (current) => {
+    const lists: AnyRecord[] = Array.isArray(current)
+      ? current.map((list) => ({ ...list, movies: [...(list.movies ?? [])] }))
+      : [];
+    const onList = new Set(lists.flatMap((list) => list.movies.map((item: AnyRecord) => item.movieId)));
+    asArray(data.annualWatchlists).forEach((incoming) => {
+      const year = Number(incoming.year);
+      if (!Number.isFinite(year)) return;
+      let list: AnyRecord | undefined = lists.find((item) => Number(item.year) === year);
+      if (!list) {
+        list = { id: incoming.id ?? `year-${year}`, year, title: incoming.title ?? `${year} Watchlist`, movies: [] };
+        lists.push(list);
+      }
+      const target = list;
+      asArray(incoming.movies).forEach((item) => {
+        if (!item.movieId || onList.has(item.movieId)) return;
+        onList.add(item.movieId);
+        target.movies.push({ ...item, posterPath: remap(item.posterPath) });
+        summary.watchlistFilms += 1;
+      });
+    });
+    return lists;
+  });
+
+  await updateJson<AnyRecord[]>(DATA_FILES.watchlistMovies, [], (current) => {
+    const list = Array.isArray(current) ? [...current] : [];
+    const ids = new Set(list.map((item) => item.id));
+    asArray(data.watchlistMovies).forEach((incoming) => {
+      if (!incoming.id || ids.has(incoming.id)) return;
+      ids.add(incoming.id);
+      list.push({ ...incoming, posterPath: remap(incoming.posterPath) });
+    });
+    return list;
+  });
+
+  return summary;
+}
+
+/**
+ * Lets the user choose a backup file made by Export, asks to confirm, and adds its data to this device.
+ * `onDone` runs after the data has been added, so the screen can reload it.
+ */
+export async function importBackup(onDone?: () => void): Promise<void> {
+  try {
+    const text = await pickBackupText();
+    if (text === null) return;
+
+    let data: BackupFile;
+    try {
+      data = JSON.parse(text) as BackupFile;
+    } catch {
+      notify('Import failed', 'This file is not a ThiraiLog backup.');
+      return;
+    }
+    const known = ['viewingEntries', 'watchlistMovies', 'annualWatchlists', 'movies', 'theatres'] as const;
+    if (!data || typeof data !== 'object' || !known.some((key) => Array.isArray(data[key]))) {
+      notify('Import failed', 'This file is not a ThiraiLog backup.');
+      return;
+    }
+
+    const viewings = asArray(data.viewingEntries).length;
+    const films = asArray(data.movies).length;
+    const theatres = asArray(data.theatres).length;
+    confirmAction(
+      'Import backup',
+      `The file has ${viewings} viewings, ${films} films and ${theatres} theatres. They are added to your diary. ` +
+        'Anything you already have stays as it is.',
+      async () => {
+        try {
+          const summary = await applyBackup(data);
+          onDone?.();
+          notify(
+            'Import complete',
+            `Added ${summary.viewings} viewings, ${summary.films} films, ${summary.theatres} theatres and ` +
+              `${summary.watchlistFilms} watchlist films.`
+          );
+        } catch {
+          notify('Import failed', 'Could not add the data from this file.');
+        }
+      },
+      'Import'
+    );
+  } catch {
+    notify('Import failed', 'Could not read this file.');
   }
 }

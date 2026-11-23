@@ -15,7 +15,7 @@ Built with Expo SDK 58, React Native 0.88 and Expo Router. The app targets Andro
   - **Theatres:** the theatres you have visited, grouped by district, with search, add, edit and delete. Older viewings that only have a typed theatre name can be imported once.
   - **Film database:** the films you have saved. Add a film with a title and a required release year, and an optional poster from your photo library.
   - **Statistics:** films logged, theatre visits, average rating, bucket list completion, Solo and Group viewings per year, monthly activity, year by year and highest rated.
-  - **Backup:** exports everything as a JSON file, including poster images stored on the device. Import is not built yet.
+  - **Backup:** Export saves everything as a JSON file, including poster images stored on the device. Import reads that file and adds its viewings, films, theatres, watchlists and posters to what is already on the device. Anything already there is kept as it is, and a film that is already on a watchlist is not added again.
 
 ## Theme
 
@@ -73,7 +73,7 @@ src/
     library.ts    Viewings, watchlists and the film database
     theatres.ts   Theatres, search and old-data import
     stats.ts      Solo and Group counting, shared by Home and Statistics
-    backup.ts     Backup export
+    backup.ts     Backup export and import
     posters.ts    Poster images picked from the photo library
     format.ts     Date helpers
   api/          The saved film catalog

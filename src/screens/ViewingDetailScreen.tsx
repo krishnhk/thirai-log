@@ -132,6 +132,12 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
                 />
               </>
             ) : null}
+            {entry.price !== undefined ? (
+              <>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <DetailRow icon="cash" label="Spent" value={`₹${entry.price.toLocaleString('en-IN')}`} />
+              </>
+            ) : null}
           </View>
 
           <View style={styles.actions}>

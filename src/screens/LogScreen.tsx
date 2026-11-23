@@ -63,6 +63,8 @@ export default function LogScreen() {
   const [companion, setCompanion] = useState<Companion | undefined>(undefined);
   const [companionError, setCompanionError] = useState(false);
   const [theatreError, setTheatreError] = useState(false);
+  // The total price of the viewing, as typed. Optional.
+  const [priceText, setPriceText] = useState('');
   // True when an entry saved before the question existed is being edited.
   const [unansweredOld, setUnansweredOld] = useState(false);
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
@@ -89,6 +91,7 @@ export default function LogScreen() {
         setTheatre('');
         setTheatreId(undefined);
         setCompanion(undefined);
+        setPriceText('');
         setCompanionError(false);
     setTheatreError(false);
         setDateText(todayInputValue());
@@ -108,6 +111,7 @@ export default function LogScreen() {
     setTheatre(entry.theatre ?? '');
     setTheatreId(entry.theatreId);
     setCompanion(entry.companion);
+    setPriceText(entry.price !== undefined ? String(entry.price) : '');
     setCompanionError(false);
     setTheatreError(false);
     setUnansweredOld(!entry.companion);
@@ -132,6 +136,7 @@ export default function LogScreen() {
     setTheatre('');
     setTheatreId(undefined);
     setCompanion(undefined);
+    setPriceText('');
     setCompanionError(false);
     setTheatreError(false);
     setUnansweredOld(false);
@@ -206,6 +211,14 @@ export default function LogScreen() {
       return;
     }
 
+    // Price is optional; when something is typed it has to be a number.
+    const typedPrice = priceText.replace(/,/g, '').trim();
+    const price = typedPrice === '' ? undefined : Number(typedPrice);
+    if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
+      setBanner({ type: 'error', text: 'Enter the price as a number, for example 250.' });
+      return;
+    }
+
     if (!companion) {
       setCompanionError(true);
       setBanner({ type: 'error', text: 'Choose who you watched with.' });
@@ -228,6 +241,7 @@ export default function LogScreen() {
         // Cleared together with the name; saveViewingEntry replaces both fields.
         theatreId: theatre.trim() ? theatreId : undefined,
         companion,
+        price,
         status: 'watched',
         createdAt: existing?.createdAt ?? new Date().toISOString(),
       };
@@ -273,6 +287,7 @@ export default function LogScreen() {
     theatre.trim() === (editedEntry.theatre ?? '').trim() &&
     theatreId === editedEntry.theatreId &&
     companion === editedEntry.companion &&
+    (priceText.replace(/,/g, '').trim() === '' ? undefined : Number(priceText.replace(/,/g, '').trim())) === editedEntry.price &&
     selected.posterPath === resolvePoster(library, editedEntry.movieId, editedEntry.title);
 
   const isPicked = selected !== null && query === selected.title;
@@ -483,6 +498,31 @@ export default function LogScreen() {
               }}
               onOpen={() => scrollRef.current?.scrollToEnd({ animated: true })}
             />
+          </Field>
+
+          <Field label="Amount spent" optional>
+            <View style={[styles.inputRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Text style={[styles.currency, { color: colors.coralInk }]}>₹</Text>
+              <TextInput
+                value={priceText}
+                onChangeText={(text) => {
+                  setPriceText(text.replace(/[^0-9.,]/g, ''));
+                  setBanner(null);
+                }}
+                placeholder="e.g. 250"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="decimal-pad"
+                accessibilityLabel="Amount spent, optional"
+                style={[styles.input, { color: colors.text }]}
+              />
+            </View>
+            <Text style={[styles.priceHint, { color: colors.textMuted }]}>
+              {companion === 'company'
+                ? 'Everything you paid for the group, in total.'
+                : companion === 'alone'
+                  ? 'What you paid for your own ticket.'
+                  : 'What you paid: just for you, or in total for your group.'}
+            </Text>
           </Field>
 
           <View style={styles.field}>
@@ -806,6 +846,15 @@ const styles = StyleSheet.create({
     ...INPUT_RESET,
     flex: 1,
     padding: 0,
+  },
+  priceHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 6,
+  },
+  currency: {
+    fontSize: 17,
+    fontWeight: '800',
   },
   todayBtn: {
     height: 46,
