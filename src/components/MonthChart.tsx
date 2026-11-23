@@ -13,6 +13,8 @@ interface MonthChartProps {
   showCounts?: boolean;
   /** Lower bars and tighter labels for dashboard cards. */
   compact?: boolean;
+  /** Text shown above a bar, for example a short amount such as 1.2k. Defaults to the number. */
+  formatValue?: (value: number) => string;
 }
 
 export function MonthChart({
@@ -24,6 +26,7 @@ export function MonthChart({
   selectedColor,
   showCounts = true,
   compact,
+  formatValue,
 }: MonthChartProps) {
   const { colors } = useTheme();
   const tint = accent ?? colors.accent;
@@ -57,7 +60,7 @@ export function MonthChart({
                     },
                   ]}
                 >
-                  {count}
+                  {formatValue ? formatValue(count) : count}
                 </Text>
               ) : (
                 <View style={[styles.countSpacer, compact && styles.countSpacerCompact]} />

@@ -51,8 +51,11 @@ export default function HomeScreen() {
       currentList?.movies.filter((movie) => movie.status === 'watched').length ?? 0;
 
     const monthlyCounts = Array.from({ length: 12 }, () => 0);
+    const monthlySpent = Array.from({ length: 12 }, () => 0);
     entriesThisYear.forEach((entry) => {
-      monthlyCounts[toDate(entry.watchedAt).getMonth()] += 1;
+      const month = toDate(entry.watchedAt).getMonth();
+      monthlyCounts[month] += 1;
+      if (typeof entry.price === 'number') monthlySpent[month] += entry.price;
     });
 
     return {
@@ -62,6 +65,8 @@ export default function HomeScreen() {
       bucketTotal,
       bucketWatched,
       monthlyCounts,
+      monthlySpent,
+      hasSpend: monthlySpent.some((amount) => amount > 0),
     };
   }, [library, year]);
 
@@ -251,6 +256,39 @@ export default function HomeScreen() {
                 selectedColor={colors.accent}
               />
             </View>
+
+            {/* What you spent each month this year, from the amounts entered on viewings. */}
+            {derived.hasSpend ? (
+              <View
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.borderSoft,
+                    shadowColor: mode === 'light' ? '#1A2A42' : '#000000',
+                  },
+                ]}
+              >
+                <View style={styles.cardHead}>
+                  <Ionicons name="cash" size={16} color={colors.accent} />
+                  <Text style={[styles.monthTitle, { color: colors.text }]}>Monthly spending</Text>
+                  <Text style={[styles.monthYear, { color: colors.textMuted }]}>
+                    ₹{derived.monthlySpent[selectedMonth].toLocaleString('en-IN')} in {monthShort(selectedMonth)}
+                  </Text>
+                </View>
+
+                <MonthChart
+                  compact
+                  counts={derived.monthlySpent}
+                  labels={Array.from({ length: 12 }, (_, index) => monthShort(index))}
+                  selectedIndex={selectedMonth}
+                  onSelect={setSelectedMonth}
+                  accent={colors.accent}
+                  selectedColor={colors.accent}
+                  formatValue={(amount) => (amount >= 1000 ? `${Math.round(amount / 100) / 10}k` : String(Math.round(amount)))}
+                />
+              </View>
+            ) : null}
           </View>
         )}
       </ScrollView>

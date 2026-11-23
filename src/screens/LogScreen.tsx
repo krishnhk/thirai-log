@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -39,6 +40,8 @@ import { DatePickerSheet } from '../components/DatePickerSheet';
 import { Card } from '../components/Card';
 import { Poster } from '../components/Poster';
 import { ActionButton } from '../components/ActionButton';
+import { SavingOverlay } from '../components/SavingOverlay';
+import { holdSaving } from '../lib/ui';
 
 interface SelectedMovie {
   movieId: string;
@@ -68,6 +71,22 @@ export default function LogScreen() {
   // True when an entry saved before the question existed is being edited.
   const [unansweredOld, setUnansweredOld] = useState(false);
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const priceFieldRef = useRef<React.ComponentRef<typeof View>>(null);
+
+  // When the amount field is tapped, scroll it up so the number pad does not cover it.
+  const showPriceField = () => {
+    setTimeout(() => {
+      const scroller = scrollRef.current;
+      const field = priceFieldRef.current;
+      const inner = scroller?.getInnerViewRef?.();
+      if (!scroller || !field || !inner) return;
+      field.measureLayout(
+        inner as never,
+        (_x: number, y: number) => scroller.scrollTo({ y: Math.max(0, y - 120), animated: true }),
+        () => undefined
+      );
+    }, 300);
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [banner, setBanner] = useState<Banner>(null);
@@ -227,6 +246,7 @@ export default function LogScreen() {
 
     try {
       setSaving(true);
+      const startedAt = Date.now();
       const existing = editingId
         ? library.entries.find((item) => item.id === editingId)
         : undefined;
@@ -252,6 +272,9 @@ export default function LogScreen() {
       if (selected?.posterPath) {
         await updateFilmPoster(movieId, title, selected.posterPath);
       }
+
+      // Keep the saving page up long enough to be seen, even when the save is instant.
+      await holdSaving(startedAt);
 
       const wasEditing = Boolean(editingId);
       const returnToDiary = from === 'diary';
@@ -294,7 +317,7 @@ export default function LogScreen() {
   const showResults = query.trim().length > 0 && !isPicked;
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView style={[styles.root, { backgroundColor: colors.background }]} behavior="padding">
       {editEntryId ? (
         <View
           style={[
@@ -500,6 +523,7 @@ export default function LogScreen() {
             />
           </Field>
 
+          <View ref={priceFieldRef} collapsable={false}>
           <Field label="Amount spent" optional>
             <View style={[styles.inputRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
               <Text style={[styles.currency, { color: colors.coralInk }]}>₹</Text>
@@ -513,6 +537,7 @@ export default function LogScreen() {
                 placeholderTextColor={colors.textMuted}
                 keyboardType="decimal-pad"
                 accessibilityLabel="Amount spent, optional"
+                onFocus={showPriceField}
                 style={[styles.input, { color: colors.text }]}
               />
             </View>
@@ -524,6 +549,7 @@ export default function LogScreen() {
                   : 'What you paid: just for you, or in total for your group.'}
             </Text>
           </Field>
+          </View>
 
           <View style={styles.field}>
             <CompanionPicker
@@ -583,7 +609,8 @@ export default function LogScreen() {
           style={styles.footerSave}
         />
       </View>
-    </View>
+      <SavingOverlay visible={saving} />
+    </KeyboardAvoidingView>
   );
 }
 

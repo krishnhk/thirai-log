@@ -6,10 +6,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACE, RADIUS, TYPE, INPUT_RESET, useTheme } from '../theme';
 import { upsertMovie } from '../api/movies';
 import { editFilm, filmYear, loadLibrary, resolvePoster, searchableFilms } from '../lib/library';
-import { notify } from '../lib/ui';
+import { holdSaving, notify } from '../lib/ui';
 import { Card } from '../components/Card';
 import { PosterPicker } from '../components/PosterPicker';
 import { ActionButton } from '../components/ActionButton';
+import { SavingOverlay } from '../components/SavingOverlay';
 
 function FieldError({ text }: { text: string }) {
   const { colors } = useTheme();
@@ -85,6 +86,7 @@ export default function AddMovieScreen() {
     const name = title.trim();
 
     setSaving(true);
+    const startedAt = Date.now();
     try {
       const library = await loadLibrary();
       const key = name.toLowerCase();
@@ -113,6 +115,7 @@ export default function AddMovieScreen() {
           posterPath: poster,
         });
       }
+      await holdSaving(startedAt);
       router.back();
     } catch {
       notify('Could not save', 'Please try again.');
@@ -209,6 +212,7 @@ export default function AddMovieScreen() {
           />
         </View>
       </ScrollView>
+      <SavingOverlay visible={saving} />
     </View>
   );
 }

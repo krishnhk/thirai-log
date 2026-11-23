@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { RADIUS, SERIF, SPACE, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { resolvePoster, type ViewingEntry } from '../lib/library';
@@ -35,6 +35,9 @@ interface YearGroup {
   count: number;
   months: MonthGroup[];
 }
+
+// Where the list was scrolled to. Kept outside the screen so it survives the screen being rebuilt after a save.
+let lastScrollY = 0;
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
@@ -80,8 +83,23 @@ export default function DiaryScreen() {
   const [pinnedYear, setPinnedYear] = useState<number | null>(null);
   const yearTops = useRef<Record<number, number>>({});
 
+  // After a save the Diary can come back at the top. Remember the scroll position and put the list back
+  // where it was once its content is laid out again.
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const restoreScroll = useRef(lastScrollY > 0);
+  useFocusEffect(
+    useCallback(() => {
+      restoreScroll.current = lastScrollY > 0;
+      const timer = setTimeout(() => {
+        restoreScroll.current = false;
+      }, 2000);
+      return () => clearTimeout(timer);
+    }, [])
+  );
+
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = event.nativeEvent.contentOffset.y;
+    lastScrollY = y;
     let current: number | null = null;
     if (yearGroups.length > 0 && y > (yearTops.current[yearGroups[0].year] ?? 0) + 1) {
       yearGroups.forEach((group) => {
@@ -100,7 +118,14 @@ export default function DiaryScreen() {
       {/* The page header stays put; only the years below scroll. */}
       <View style={styles.listWrap}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
+        onContentSizeChange={(_width, height) => {
+          if (restoreScroll.current && height >= lastScrollY + 1) {
+            scrollRef.current?.scrollTo({ y: lastScrollY, animated: false });
+            restoreScroll.current = false;
+          }
+        }}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         contentContainerStyle={{

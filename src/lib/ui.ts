@@ -30,3 +30,11 @@ export function notify(title: string, message?: string): void {
   }
   Alert.alert(title, message);
 }
+
+/**
+ * Waits until the saving page has been up for at least `minMs`, so a very quick save does not make it
+ * flash on and off. Pass the time the save started.
+ */
+export function holdSaving(startedAt: number, minMs = 600): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, minMs - (Date.now() - startedAt))));
+}

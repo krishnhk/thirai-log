@@ -164,6 +164,20 @@ export function theatreDisplay(
   return text ? { name: text } : null;
 }
 
+/**
+ * Every viewing at one theatre: those saved with this theatre's id, plus older ones that only have the
+ * theatre name typed in (and no id), matched by name.
+ */
+export function viewingsAtTheatre<T extends { theatre?: string; theatreId?: string }>(
+  entries: T[],
+  theatre: Theatre
+): T[] {
+  const name = lower(theatre.name);
+  return entries.filter((entry) =>
+    entry.theatreId ? entry.theatreId === theatre.id : lower(entry.theatre ?? '') === name
+  );
+}
+
 // ---- Old free-text theatres -------------------------------------------------------------
 
 export interface LegacyTheatreName {

@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INPUT_RESET, RADIUS, SERIF, SPACE, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
@@ -30,8 +30,9 @@ import {
   type LegacyTheatreName,
   type Theatre,
 } from '../lib/theatres';
-import { confirmAction, notify } from '../lib/ui';
+import { confirmAction, holdSaving, notify } from '../lib/ui';
 import { ActionButton } from '../components/ActionButton';
+import { SavingOverlay } from '../components/SavingOverlay';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
 import { EditIcon } from '../components/EditIcon';
@@ -112,6 +113,7 @@ export default function TheatresScreen() {
       return;
     }
     setSaving(true);
+    const startedAt = Date.now();
     try {
       const result = await saveTheatre({
         id: editing?.id,
@@ -123,6 +125,7 @@ export default function TheatresScreen() {
         return;
       }
       await refresh();
+      await holdSaving(startedAt);
       setFormOpen(false);
     } catch {
       setFormError('Could not save this theatre. Please try again.');
@@ -229,7 +232,16 @@ export default function TheatresScreen() {
           </View>
         )}
         renderItem={({ item }) => (
-          <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
+          <Pressable
+            onPress={() => router.push({ pathname: '/theatre/[theatreId]', params: { theatreId: item.id } })}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.name}, ${item.district}. Show all visits`}
+            style={({ pressed }) => [
+              styles.row,
+              { backgroundColor: colors.surface, borderColor: colors.borderSoft },
+              pressed && { opacity: 0.8 },
+            ]}
+          >
             <View style={[styles.rowIcon, { backgroundColor: colors.coralSoft }]}>
               <Ionicons name="location" size={16} color={colors.coralInk} />
             </View>
@@ -249,7 +261,7 @@ export default function TheatresScreen() {
             >
               <EditIcon size={15} color={colors.coralInk} />
             </Pressable>
-          </View>
+          </Pressable>
         )}
         ListEmptyComponent={
           loading ? undefined : (
@@ -350,6 +362,7 @@ export default function TheatresScreen() {
               />
             </View>
           </View>
+          <SavingOverlay visible={saving} />
         </View>
       </Modal>
 

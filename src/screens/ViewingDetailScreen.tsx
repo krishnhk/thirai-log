@@ -14,12 +14,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RADIUS, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { deleteViewingEntry, resolvePoster } from '../lib/library';
-import { confirmAction, notify } from '../lib/ui';
+import { confirmAction, holdSaving, notify } from '../lib/ui';
 import { theatreDisplay } from '../lib/theatres';
 import { COMPANION_LABELS } from '../lib/stats';
 import { MONTH_NAMES, toDate } from '../lib/format';
 import { Poster } from '../components/Poster';
 import { EditIcon } from '../components/EditIcon';
+import { SavingOverlay } from '../components/SavingOverlay';
 import { ActionButton } from '../components/ActionButton';
 
 interface ViewingDetailScreenProps {
@@ -54,9 +55,11 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
     const id = entry.id;
     confirmAction('Delete entry', 'Are you sure you want to delete this diary entry?', async () => {
       setDeleting(true);
+      const startedAt = Date.now();
       try {
         await deleteViewingEntry(id);
         await refresh();
+        await holdSaving(startedAt);
         router.navigate('/diary');
       } catch {
         notify('Could not delete', 'This diary entry could not be deleted. Please try again.');
@@ -196,6 +199,7 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
           />
         </View>
       ) : null}
+      <SavingOverlay visible={deleting} label="Deleting…" />
     </View>
   );
 }
