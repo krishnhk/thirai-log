@@ -243,7 +243,6 @@ export default function HomeScreen() {
               <View style={styles.cardHead}>
                 <Ionicons name="bar-chart" size={16} color={colors.accent} />
                 <Text style={[styles.monthTitle, { color: colors.text }]}>Monthly activity</Text>
-                <Text style={[styles.monthYear, { color: colors.textMuted }]}>{year}</Text>
               </View>
 
               <MonthChart
@@ -272,9 +271,6 @@ export default function HomeScreen() {
                 <View style={styles.cardHead}>
                   <Ionicons name="cash" size={16} color={colors.accent} />
                   <Text style={[styles.monthTitle, { color: colors.text }]}>Monthly spending</Text>
-                  <Text style={[styles.monthYear, { color: colors.textMuted }]}>
-                    ₹{derived.monthlySpent[selectedMonth].toLocaleString('en-IN')} in {monthShort(selectedMonth)}
-                  </Text>
                 </View>
 
                 <MonthChart
@@ -477,10 +473,5 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '800',
     letterSpacing: -0.2,
-  },
-  monthYear: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
   },
 });
