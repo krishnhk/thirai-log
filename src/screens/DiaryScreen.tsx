@@ -83,23 +83,33 @@ export default function DiaryScreen() {
   const [pinnedYear, setPinnedYear] = useState<number | null>(null);
   const yearTops = useRef<Record<number, number>>({});
 
-  // After a save the Diary can come back at the top. Remember the scroll position and put the list back
-  // where it was once its content is laid out again.
+  // Coming back to the Diary (after editing a viewing, for example) can leave the list at the top, because
+  // Android resets the scroll offset of a tab that was hidden. So the screen remembers where the list was
+  // scrolled to and puts it back every time it is shown again: bottom stays bottom, middle stays middle.
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  const restoreScroll = useRef(lastScrollY > 0);
+  // True while the position is being put back, so the reset to the top is not remembered as the new position.
+  const restoring = useRef(lastScrollY > 0);
+  const putBack = useCallback(() => {
+    scrollRef.current?.scrollTo({ y: lastScrollY, animated: false });
+  }, []);
   useFocusEffect(
     useCallback(() => {
-      restoreScroll.current = lastScrollY > 0;
-      const timer = setTimeout(() => {
-        restoreScroll.current = false;
-      }, 2000);
-      return () => clearTimeout(timer);
-    }, [])
+      if (lastScrollY <= 0) return undefined;
+      restoring.current = true;
+      // A few tries, because the list may not be laid out again at the first moment.
+      const timers = [30, 150, 350].map((delay) => setTimeout(putBack, delay));
+      timers.push(
+        setTimeout(() => {
+          restoring.current = false;
+        }, 700)
+      );
+      return () => timers.forEach(clearTimeout);
+    }, [putBack])
   );
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = event.nativeEvent.contentOffset.y;
-    lastScrollY = y;
+    if (!restoring.current) lastScrollY = y;
     let current: number | null = null;
     if (yearGroups.length > 0 && y > (yearTops.current[yearGroups[0].year] ?? 0) + 1) {
       yearGroups.forEach((group) => {
@@ -120,11 +130,8 @@ export default function DiaryScreen() {
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={(_width, height) => {
-          if (restoreScroll.current && height >= lastScrollY + 1) {
-            scrollRef.current?.scrollTo({ y: lastScrollY, animated: false });
-            restoreScroll.current = false;
-          }
+        onContentSizeChange={() => {
+          if (restoring.current) putBack();
         }}
         onScroll={handleScroll}
         scrollEventThrottle={16}

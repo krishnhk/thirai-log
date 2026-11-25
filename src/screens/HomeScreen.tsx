@@ -189,11 +189,14 @@ export default function HomeScreen() {
                 <Ionicons name="chevron-forward" size={20} color={colors.textDim} />
               </Pressable>
 
-              {/* Monthly activity, number first: the selected month's numbers lead, a thin trend line follows. */}
+              {/* Monthly card, number first. Once amounts are entered, the money is the story: the amount leads and
+                  the line follows what you spent each month. Before that, it follows the movies watched. */}
               <View style={cardStyle}>
                 <View style={styles.cardHead}>
-                  <Ionicons name="bar-chart" size={15} color={colors.accent} />
-                  <Text style={[styles.monthTitle, { color: colors.text }]}>Monthly activity</Text>
+                  <Ionicons name={derived.hasSpend ? 'cash' : 'bar-chart'} size={15} color={colors.accent} />
+                  <Text style={[styles.monthTitle, { color: colors.text }]}>
+                    {derived.hasSpend ? 'Monthly spending' : 'Monthly activity'}
+                  </Text>
                 </View>
 
                 <View style={styles.monthNumbers}>
@@ -201,27 +204,33 @@ export default function HomeScreen() {
                     <Text style={[styles.monthName, { color: colors.textMuted }]}>
                       {MONTH_NAMES[selectedMonth].toUpperCase()}
                     </Text>
-                    <View style={styles.monthMovies}>
+                    {derived.hasSpend ? (
                       <Text style={[styles.monthCount, { color: colors.text }]}>
-                        {derived.monthlyCounts[selectedMonth]}
+                        ₹{derived.monthlySpent[selectedMonth].toLocaleString('en-IN')}
                       </Text>
-                      <Text style={[styles.monthUnit, { color: colors.textMuted }]}>
-                        {derived.monthlyCounts[selectedMonth] === 1 ? 'movie' : 'movies'}
-                      </Text>
-                    </View>
+                    ) : (
+                      <View style={styles.monthMovies}>
+                        <Text style={[styles.monthCount, { color: colors.text }]}>
+                          {derived.monthlyCounts[selectedMonth]}
+                        </Text>
+                        <Text style={[styles.monthUnit, { color: colors.textMuted }]}>
+                          {derived.monthlyCounts[selectedMonth] === 1 ? 'movie' : 'movies'}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   {derived.hasSpend ? (
                     <View style={styles.monthSpent}>
-                      <Text style={[styles.monthName, { color: colors.textMuted }]}>SPENT</Text>
+                      <Text style={[styles.monthName, { color: colors.textMuted }]}>MOVIES</Text>
                       <Text style={[styles.monthAmount, { color: colors.text }]}>
-                        ₹{derived.monthlySpent[selectedMonth].toLocaleString('en-IN')}
+                        {derived.monthlyCounts[selectedMonth]}
                       </Text>
                     </View>
                   ) : null}
                 </View>
 
                 <MonthTrend
-                  values={derived.monthlyCounts}
+                  values={derived.hasSpend ? derived.monthlySpent : derived.monthlyCounts}
                   labels={Array.from({ length: 12 }, (_, index) => monthShort(index))}
                   selectedIndex={selectedMonth}
                   onSelect={setSelectedMonth}
