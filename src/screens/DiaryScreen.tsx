@@ -238,9 +238,13 @@ export default function DiaryScreen() {
                           </View>
 
                           {entry.companion ? (
-                            <Text style={[styles.companionText, { color: colors.accent }]}>
-                              {COMPANION_LABELS[entry.companion]}
-                            </Text>
+                            <View accessible accessibilityLabel={COMPANION_LABELS[entry.companion]}>
+                              <Ionicons
+                                name={entry.companion === 'alone' ? 'person' : 'people'}
+                                size={19}
+                                color={colors.accent}
+                              />
+                            </View>
                           ) : null}
 
                         </Pressable>
@@ -447,12 +451,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
-  },
-  companionText: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '800',
-    letterSpacing: 0.2,
   },
   notes: {
     fontSize: 11.5,
