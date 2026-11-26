@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RADIUS, SERIF, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
@@ -96,7 +97,13 @@ export default function TheatreDetailScreen({ theatreId }: TheatreDetailScreenPr
                     <Text style={[styles.rowMeta, { color: colors.textMuted }]}>{longDate(entry.watchedAt)}</Text>
                   </View>
                   {entry.companion ? (
-                    <Text style={[styles.tag, { color: colors.accent }]}>{COMPANION_LABELS[entry.companion]}</Text>
+                    <View accessible accessibilityLabel={COMPANION_LABELS[entry.companion]}>
+                      <Ionicons
+                        name={entry.companion === 'alone' ? 'person' : 'people'}
+                        size={19}
+                        color="#9DBBE6"
+                      />
+                    </View>
                   ) : null}
                 </View>
               ))}

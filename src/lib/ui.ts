@@ -1,34 +1,52 @@
-import { Alert, Platform } from 'react-native';
+/** What a popup shows. Popups are drawn inside the app by the DialogHost in the app root. */
+export interface DialogSpec {
+  title: string;
+  message?: string;
+  /** Text of the main button. */
+  confirmLabel: string;
+  /** Shows a second "Cancel" button. Notices have only the main button ("OK"). */
+  cancellable: boolean;
+  /** The main button is drawn in the warning colour (for deleting). */
+  danger: boolean;
+  onConfirm?: () => void;
+}
 
+type DialogListener = (spec: DialogSpec) => void;
+let dialogListener: DialogListener | null = null;
+const pendingDialogs: DialogSpec[] = [];
+
+/** Used by the DialogHost to receive popups. Returns an unsubscribe function. */
+export function subscribeDialogs(listener: DialogListener): () => void {
+  dialogListener = listener;
+  // Anything asked for before the host mounted is shown now, one after another.
+  pendingDialogs.splice(0).forEach((spec) => listener(spec));
+  return () => {
+    if (dialogListener === listener) dialogListener = null;
+  };
+}
+
+function showDialog(spec: DialogSpec): void {
+  if (dialogListener) dialogListener(spec);
+  else pendingDialogs.push(spec);
+}
+
+/**
+ * Asks before doing something. The popup is drawn inside the app, not by the system. The main button is red
+ * unless `options.danger` is false.
+ */
 export function confirmAction(
   title: string,
   message: string,
   onConfirm: () => void,
-  confirmLabel = 'Delete'
+  confirmLabel = 'Delete',
+  options: { danger?: boolean } = {}
 ): void {
-  if (Platform.OS === 'web') {
-    const anyGlobal = globalThis as { confirm?: (msg: string) => boolean };
-    if (typeof anyGlobal.confirm === 'function') {
-      if (anyGlobal.confirm(`${title}\n\n${message}`)) onConfirm();
-      return;
-    }
-  }
-
-  Alert.alert(title, message, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: confirmLabel, style: 'destructive', onPress: onConfirm },
-  ]);
+  showDialog({ title, message, confirmLabel, cancellable: true, danger: options.danger ?? true, onConfirm });
 }
 
+/** Tells the user something, with one "OK" button. Drawn inside the app. */
 export function notify(title: string, message?: string): void {
-  if (Platform.OS === 'web') {
-    const anyGlobal = globalThis as { alert?: (msg: string) => void };
-    if (typeof anyGlobal.alert === 'function') {
-      anyGlobal.alert(message ? `${title}\n\n${message}` : title);
-      return;
-    }
-  }
-  Alert.alert(title, message);
+  showDialog({ title, message, confirmLabel: 'OK', cancellable: false, danger: false });
 }
 
 /**

@@ -33,7 +33,8 @@ export async function pickPosterFromLibrary(movieId: string): Promise<string | n
     if (!dir.exists) dir.create({ intermediates: true });
     const safeId = movieId.replace(/[^a-zA-Z0-9_-]+/g, '-').slice(0, 60) || 'film';
     const destination = new File(dir, `${safeId}-${Date.now()}.jpg`);
-    new File(sourceUri).copy(destination);
+    // copy() is asynchronous: wait for it, so the returned path always points at a finished file.
+    await new File(sourceUri).copy(destination);
     return destination.uri;
   } catch {
     // Where the file system can't store files (web), use the picked image directly.

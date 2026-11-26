@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { INPUT_RESET, SPACE, RADIUS, SERIF, TYPE, useTheme } from '../theme';
+import { INPUT_RESET, SPACE, RADIUS, NUMBER_FONT, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { useMovieSearch } from '../hooks/useMovieSearch';
 import { searchableFilms } from '../lib/library';
@@ -74,6 +74,9 @@ export default function WatchlistScreen() {
       .sort((a, b) => b.year - a.year);
   }, [library.annual, listQuery]);
 
+  // With no films in any year there is nothing to search, so only the "Add film" card shows.
+  const noWatchlist = library.annual.every((list) => list.movies.length === 0);
+
   // Tick the circle to mark a film watched; tick it again to put it back to planned.
   const toggleWatched = async (year: number, movie: WatchItem) => {
     if (busy) return;
@@ -106,8 +109,14 @@ export default function WatchlistScreen() {
     () => new Set(library.annual.flatMap((list) => list.movies.map((item) => item.movieId))),
     [library.annual]
   );
-  const searching = search.trim().length > 0;
+  // Suggestions only appear once at least three characters are typed.
+  const searching = search.trim().length >= 3;
   const searchResults = searching ? searchHits.filter((hit) => !onWatchlist.has(hit.id)) : [];
+  // True when what was typed is exactly the title of a film that is already on a watchlist.
+  const typedTitle = search.trim().toLowerCase();
+  const typedExactlyOnList = searchHits.some(
+    (hit) => onWatchlist.has(hit.id) && hit.title.trim().toLowerCase() === typedTitle
+  );
 
   const closeAdd = () => {
     setAddOpen(false);
@@ -167,14 +176,11 @@ export default function WatchlistScreen() {
     }
   };
 
-  const manualTitle = search.trim();
-
-  // Films not in the database are added on their own screen, then found by search.
-  const addManually = () => {
-    if (!manualTitle) return;
-    closeAdd();
-    router.navigate({ pathname: '/add-movie', params: { title: manualTitle } });
-  };
+  // The year stepper moves the watchlist year one at a time, within the same limits addMovie checks.
+  const minYear = currentYear; // the stepper never goes to a past year
+  const maxYear = currentYear + 10;
+  const shownYear = /^\d{4}$/.test(addYear.trim()) ? Number(addYear) : currentYear;
+  const stepYear = (by: number) => setAddYear(String(Math.min(maxYear, Math.max(minYear, shownYear + by))));
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -190,28 +196,32 @@ export default function WatchlistScreen() {
           alignSelf: 'center',
         }}
       >
-        {/* Search on the left, add button on the right */}
-        <View style={styles.topRow}>
-          <View style={[styles.listSearch, { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft }]}>
-            <Ionicons name="search" size={16} color={colors.textMuted} />
-            <TextInput
-              value={listQuery}
-              onChangeText={setListQuery}
-              placeholder="Search your watchlist"
-              placeholderTextColor={colors.textMuted}
-              autoCorrect={false}
-              accessibilityLabel="Search your watchlist"
-              style={[styles.listSearchInput, INPUT_RESET, { color: colors.text }]}
-            />
-          </View>
-          <ActionButton
-            label="Add film"
-            icon="add"
-            compact
-            style={styles.addButton}
-            onPress={() => setAddOpen(true)}
-          />
-        </View>
+        {loading || noWatchlist ? null : (
+          <>
+            {/* Search on the left, add button on the right */}
+            <View style={styles.topRow}>
+              <View style={[styles.listSearch, { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft }]}>
+                <Ionicons name="search" size={16} color={colors.textMuted} />
+                <TextInput
+                  value={listQuery}
+                  onChangeText={setListQuery}
+                  placeholder="Search your watchlist"
+                  placeholderTextColor={colors.textMuted}
+                  autoCorrect={false}
+                  accessibilityLabel="Search your watchlist"
+                  style={[styles.listSearchInput, INPUT_RESET, { color: colors.text }]}
+                />
+              </View>
+              <ActionButton
+                label="Add film"
+                icon="add"
+                compact
+                style={styles.addButton}
+                onPress={() => setAddOpen(true)}
+              />
+            </View>
+          </>
+        )}
 
         {loading ? (
           <View style={styles.loading}>
@@ -220,7 +230,6 @@ export default function WatchlistScreen() {
         ) : sections.length === 0 ? (
           <View style={styles.emptyWrap}>
             <EmptyState
-              compact
               icon="bookmark-outline"
               title={listQuery.trim() ? 'No matching films' : `Nothing in ${currentYear} yet`}
               message={
@@ -228,6 +237,8 @@ export default function WatchlistScreen() {
                   ? undefined
                   : 'Add the films you want to watch this year and track them as you go.'
               }
+              actionLabel={noWatchlist ? 'Add film' : undefined}
+              onAction={noWatchlist ? () => setAddOpen(true) : undefined}
             />
           </View>
         ) : (
@@ -328,28 +339,50 @@ export default function WatchlistScreen() {
               <View style={styles.flex}>
                 <Text style={[styles.sheetTitle, { color: colors.text }]}>Add to watchlist</Text>
               </View>
-              <Pressable onPress={closeAdd} accessibilityLabel="Close" hitSlop={8}>
-                <Ionicons name="close" size={22} color={colors.textMuted} />
+              <Pressable
+                onPress={closeAdd}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={8}
+                style={[styles.closeCircle, { backgroundColor: colors.surfaceAlt }]}
+              >
+                <Ionicons name="close" size={18} color={colors.textMuted} />
               </Pressable>
             </View>
 
+            {/* Year stepper: minus and plus instead of typing four digits. */}
             <View style={styles.yearField}>
               <Text style={[styles.yearFieldLabel, { color: colors.textMuted }]}>Watchlist year</Text>
-              <TextInput
-                value={addYear}
-                onChangeText={(text) => setAddYear(text.replace(/[^0-9]/g, '').slice(0, 4))}
-                keyboardType="number-pad"
-                maxLength={4}
+              <View
+                style={[styles.stepper, { backgroundColor: colors.surfaceAlt }]}
                 accessibilityLabel="Watchlist year"
-                style={[
-                  styles.yearInput,
-                  INPUT_RESET,
-                  { color: colors.text, backgroundColor: colors.surfaceAlt, borderColor: colors.border },
-                ]}
-              />
+                accessibilityValue={{ text: String(shownYear) }}
+              >
+                <Pressable
+                  onPress={() => stepYear(-1)}
+                  disabled={shownYear <= minYear}
+                  accessibilityRole="button"
+                  accessibilityLabel="Earlier year"
+                  hitSlop={6}
+                  style={({ pressed }) => [styles.stepButton, (pressed || shownYear <= minYear) && { opacity: 0.4 }]}
+                >
+                  <Ionicons name="remove" size={18} color={colors.accent} />
+                </Pressable>
+                <Text style={[styles.stepYear, { color: colors.text }]}>{shownYear}</Text>
+                <Pressable
+                  onPress={() => stepYear(1)}
+                  disabled={shownYear >= maxYear}
+                  accessibilityRole="button"
+                  accessibilityLabel="Later year"
+                  hitSlop={6}
+                  style={({ pressed }) => [styles.stepButton, (pressed || shownYear >= maxYear) && { opacity: 0.4 }]}
+                >
+                  <Ionicons name="add" size={18} color={colors.accent} />
+                </Pressable>
+              </View>
             </View>
 
-            <View style={[styles.searchRow, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+            <View style={[styles.searchRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Ionicons name="search" size={17} color={colors.textDim} />
               <TextInput
                 value={search}
@@ -362,44 +395,53 @@ export default function WatchlistScreen() {
             </View>
 
             <ScrollView style={styles.resultsList} keyboardShouldPersistTaps="handled">
-              {searchResults.length === 0 ? null : (
-                searchResults.map((movie) => {
-                  return (
-                    <Pressable
-                      key={movie.id}
-                      disabled={busy}
-                      onPress={() => addMovie(movie)}
-                      style={({ pressed }) => [
-                        styles.resultRow,
-                        { borderColor: colors.borderSoft },
-                        pressed && { opacity: 0.7 },
-                      ]}
-                    >
-                      <Poster uri={movie.posterPath} title={movie.title} width={36} radius={RADIUS.sm} />
-                      <View style={styles.flex}>
-                        <Text style={[styles.resultTitle, { color: colors.text }]} numberOfLines={1}>
-                          {movie.title}
-                        </Text>
-                        <Text style={[styles.resultMeta, { color: colors.textDim }]}>
-                          {movie.releaseDate ? yearOf(movie.releaseDate) : '—'}
-                        </Text>
-                      </View>
-                      <Ionicons name="add-circle" size={20} color={colors.accent} />
-                    </Pressable>
-                  );
-                })
+              {searching ? null : (
+                <Text style={[styles.emptyResults, { color: colors.textMuted }]}>
+                  {search.trim().length === 0
+                    ? `Search to add a film to ${shownYear}.`
+                    : 'Keep typing: suggestions appear after three letters.'}
+                </Text>
               )}
 
-              {searchHits.length === 0 && manualTitle.length > 0 ? (
+              {searchResults.map((movie) => (
                 <Pressable
-                  onPress={addManually}
-                  style={({ pressed }) => [styles.manualRow, { borderColor: colors.border }, pressed && { opacity: 0.7 }]}
+                  key={movie.id}
+                  disabled={busy}
+                  onPress={() => addMovie(movie)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add ${movie.title} to ${shownYear}`}
+                  style={({ pressed }) => [
+                    styles.resultRow,
+                    { borderColor: colors.borderSoft },
+                    pressed && { opacity: 0.7 },
+                  ]}
                 >
-                  <Ionicons name="add-circle-outline" size={17} color={colors.accent} />
-                  <Text style={[styles.manualText, { color: colors.text }]} numberOfLines={1}>
-                    Add “{manualTitle}” manually
-                  </Text>
+                  <Poster uri={movie.posterPath} title={movie.title} width={38} radius={RADIUS.sm} />
+                  <View style={styles.flex}>
+                    <Text style={[styles.resultTitle, { color: colors.text }]} numberOfLines={1}>
+                      {movie.title}
+                    </Text>
+                    <Text style={[styles.resultMeta, { color: colors.textDim }]}>
+                      {movie.releaseDate ? yearOf(movie.releaseDate) : '—'}
+                    </Text>
+                  </View>
+                  <View style={[styles.addPill, { backgroundColor: colors.accent }]}>
+                    <Text style={[styles.addPillText, { color: colors.onAccent }]}>Add</Text>
+                  </View>
                 </Pressable>
+              ))}
+
+              {/* Only when the exact title is typed; a partial match that is already listed stays quiet. */}
+              {searching && searchResults.length === 0 && typedExactlyOnList ? (
+                <Text style={[styles.emptyResults, { color: colors.textMuted }]}>
+                  Already on your watchlist. Move or remove it there to add it again.
+                </Text>
+              ) : null}
+
+              {searching && searchHits.length === 0 ? (
+                <Text style={[styles.emptyResults, { color: colors.textMuted }]}>
+                  No film called “{search.trim()}” in your database. Add it from the Film database first.
+                </Text>
               ) : null}
             </ScrollView>
           </View>
@@ -456,11 +498,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   yearTitle: {
-    fontFamily: SERIF,
+    fontFamily: NUMBER_FONT,
     fontSize: 24,
-    lineHeight: 28,
-    fontWeight: '700',
-    letterSpacing: -0.5,
+    lineHeight: 32,
+    fontWeight: '400',
+    letterSpacing: 0,
     fontVariant: ['tabular-nums'],
   },
   yearCount: {
@@ -562,7 +604,8 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     ...TYPE.heading,
-    fontSize: 16,
+    fontSize: 17,
+    fontWeight: '800',
   },
   sheetSubtitle: {
     ...TYPE.caption,
@@ -578,23 +621,56 @@ const styles = StyleSheet.create({
     ...TYPE.small,
     fontWeight: '700',
   },
-  yearInput: {
-    ...TYPE.body,
-    width: 88,
+  closeCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     height: 38,
+    borderRadius: RADIUS.pill,
+    overflow: 'hidden',
+  },
+  stepButton: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepYear: {
+    minWidth: 58,
     textAlign: 'center',
+    fontSize: 15,
     fontWeight: '800',
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
     fontVariant: ['tabular-nums'],
+  },
+  addPill: {
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  addPillText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  manualIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACE.sm,
     paddingHorizontal: SPACE.md,
-    minHeight: 42,
-    borderRadius: 10,
+    minHeight: 46,
+    borderRadius: RADIUS.pill,
     borderWidth: StyleSheet.hairlineWidth,
   },
   searchInput: {
@@ -632,10 +708,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACE.sm,
     marginTop: SPACE.sm,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: SPACE.md,
-    borderRadius: RADIUS.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1.5,
     borderStyle: 'dashed',
   },
   manualText: {

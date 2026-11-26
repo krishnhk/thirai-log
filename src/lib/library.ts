@@ -301,6 +301,25 @@ export async function editFilm(
   }
 }
 
+/**
+ * Deletes a film from the database, together with its logged viewings and its watchlist entries
+ * (in the annual lists and the old watchlist). Films are matched by id.
+ */
+export async function deleteFilm(movieId: string): Promise<void> {
+  await updateJson<Movie[]>(DATA_FILES.movies, [], (current) =>
+    (Array.isArray(current) ? current : []).filter((movie) => movie?.id !== movieId)
+  );
+  await updateJson<any[]>(STORAGE_KEYS.viewingEntries, [], (current) =>
+    (Array.isArray(current) ? current : []).filter((entry) => entry?.movieId !== movieId)
+  );
+  await updateJson<any[]>(STORAGE_KEYS.watchlistMovies, [], (current) =>
+    (Array.isArray(current) ? current : []).filter((item) => item?.movieId !== movieId)
+  );
+  await mutateAnnualLists((lists) =>
+    lists.map((list) => ({ ...list, movies: list.movies.filter((item) => item.movieId !== movieId) }))
+  );
+}
+
 export function emptyLibrary(): Library {
   return {
     entries: [],

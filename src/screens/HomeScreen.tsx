@@ -17,6 +17,8 @@ const HERO_ART = require('../../assets/images/hero-cinema-light.png');
 const HERO_RATIO = 388 / 472;
 
 // The trend line under the monthly numbers: the light shade of the app's blue.
+// The Home screen alone sets its figures in Fraunces (loaded in app/_layout); other screens use NUMBER_FONT.
+const HOME_NUMBER_FONT = 'Fraunces_500Medium';
 const TREND_COLOR = '#9DBBE6';
 
 /** Home: the title and the "Your 2026" hero, then the actions, the numbers and the monthly chart, on ivory. */
@@ -65,6 +67,11 @@ export default function HomeScreen() {
 
   const progressPct =
     derived.bucketTotal > 0 ? Math.round((derived.bucketWatched / derived.bucketTotal) * 100) : 0;
+
+  // All three tiles share one figure size, set by the longest one (the amount) so it always fits.
+  const spentText = derived.spentTotal.toLocaleString('en-IN');
+  const longest = derived.hasSpend ? spentText.length : 0;
+  const tileSize = longest >= 11 ? 20 : longest >= 10 ? 22 : longest >= 9 ? 24 : longest >= 8 ? 26 : longest >= 7 ? 28 : 30;
 
   const shadow = { shadowColor: mode === 'light' ? '#1A2A42' : '#000000' };
   const cardStyle = [styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSoft }, shadow];
@@ -138,27 +145,43 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View style={styles.stack}>
-              {/* One soft blue card: films, visits and (once you have entered amounts) spent on top, with Solo and
-                  Group in a lighter band underneath. */}
-              <View style={[styles.band, { backgroundColor: colors.coralSoft }]}>
-                <View style={styles.bandTop}>
-                  <BandNumber value={derived.uniqueThisYear} label="FILMS" />
-                  <View style={styles.bandDivider} />
-                  <BandNumber value={derived.theatreVisits} label="VISITS" />
-                  {derived.hasSpend ? (
-                    <>
-                      <View style={styles.bandDivider} />
-                      <BandNumber value={`₹${derived.spentTotal.toLocaleString('en-IN')}`} label="SPENT" small />
-                    </>
-                  ) : null}
+              {/* This year: three separate tiles, then Solo and Group as one proportional bar. */}
+              <SectionLabel text="This year" first />
+              <View style={styles.tileRow}>
+                <StatTile label="Films" value={derived.uniqueThisYear} size={tileSize} />
+                <StatTile label="Visits" value={derived.theatreVisits} size={tileSize} />
+                {derived.hasSpend ? (
+                  <StatTile label="Spent" value={spentText} size={tileSize} wide />
+                ) : null}
+              </View>
+              <View style={[cardStyle, styles.companionCard]}>
+                <View style={styles.companionRow}>
+                  <View style={styles.companionItem} accessibilityLabel={`solo: ${derived.companion.alone.viewings}`}>
+                    <Ionicons name="person" size={17} color={colors.accent} />
+                    <Text style={[styles.companionLabel, { color: colors.text }]}>Solo</Text>
+                    <Text style={[styles.companionValue, { color: colors.coralInk }]}>
+                      {derived.companion.alone.viewings}
+                    </Text>
+                  </View>
+                  <View style={styles.companionItem} accessibilityLabel={`group: ${derived.companion.company.viewings}`}>
+                    <Text style={[styles.companionValue, { color: colors.coralInk }]}>
+                      {derived.companion.company.viewings}
+                    </Text>
+                    <Text style={[styles.companionLabel, { color: colors.text }]}>Group</Text>
+                    <Ionicons name="people" size={18} color={colors.accent} />
+                  </View>
                 </View>
-                <View style={styles.bandBottom}>
-                  <Companion icon="person" label="Solo" value={derived.companion.alone.viewings} />
-                  <Companion icon="people" label="Group" value={derived.companion.company.viewings} />
+                <View style={[styles.splitBar, { backgroundColor: colors.border }]}>
+                  <View style={{ flex: Math.max(derived.companion.alone.viewings, 0.0001), backgroundColor: TREND_COLOR }} />
+                  <View style={styles.splitGap} />
+                  <View
+                    style={{ flex: Math.max(derived.companion.company.viewings, 0.0001), backgroundColor: colors.accent }}
+                  />
                 </View>
               </View>
 
               {/* Bucket list: a progress ring, the count in words, and a tap through to the watchlist. */}
+              <SectionLabel text="Progress" />
               <Pressable
                 onPress={() => router.navigate('/watchlist')}
                 accessibilityRole="button"
@@ -191,6 +214,7 @@ export default function HomeScreen() {
 
               {/* Monthly card, number first. Once amounts are entered, the money is the story: the amount leads and
                   the line follows what you spent each month. Before that, it follows the movies watched. */}
+              <SectionLabel text="Month by month" />
               <View style={cardStyle}>
                 <View style={styles.cardHead}>
                   <Ionicons name={derived.hasSpend ? 'cash' : 'bar-chart'} size={15} color={colors.accent} />
@@ -205,12 +229,12 @@ export default function HomeScreen() {
                       {MONTH_NAMES[selectedMonth].toUpperCase()}
                     </Text>
                     {derived.hasSpend ? (
-                      <Text style={[styles.monthCount, { color: colors.text }]}>
+                      <Text style={[styles.monthCount, { color: colors.coralInk }]}>
                         ₹{derived.monthlySpent[selectedMonth].toLocaleString('en-IN')}
                       </Text>
                     ) : (
                       <View style={styles.monthMovies}>
-                        <Text style={[styles.monthCount, { color: colors.text }]}>
+                        <Text style={[styles.monthCount, { color: colors.coralInk }]}>
                           {derived.monthlyCounts[selectedMonth]}
                         </Text>
                         <Text style={[styles.monthUnit, { color: colors.textMuted }]}>
@@ -222,7 +246,7 @@ export default function HomeScreen() {
                   {derived.hasSpend ? (
                     <View style={styles.monthSpent}>
                       <Text style={[styles.monthName, { color: colors.textMuted }]}>MOVIES</Text>
-                      <Text style={[styles.monthAmount, { color: colors.text }]}>
+                      <Text style={[styles.monthAmount, { color: colors.coralInk }]}>
                         {derived.monthlyCounts[selectedMonth]}
                       </Text>
                     </View>
@@ -230,11 +254,11 @@ export default function HomeScreen() {
                 </View>
 
                 <MonthTrend
-                  values={derived.hasSpend ? derived.monthlySpent : derived.monthlyCounts}
+                  values={derived.monthlyCounts}
+                  color={TREND_COLOR}
                   labels={Array.from({ length: 12 }, (_, index) => monthShort(index))}
                   selectedIndex={selectedMonth}
                   onSelect={setSelectedMonth}
-                  color={TREND_COLOR}
                 />
               </View>
             </View>
@@ -245,27 +269,37 @@ export default function HomeScreen() {
   );
 }
 
-/** One of the three main numbers in the blue band: a big serif value over a small capital label. */
-function BandNumber({ value, label, small }: { value: number | string; label: string; small?: boolean }) {
+/** A small heading over a group of cards. */
+function SectionLabel({ text, first }: { text: string; first?: boolean }) {
   const { colors } = useTheme();
   return (
-    <View style={styles.bandNumber} accessibilityLabel={`${label.toLowerCase()}: ${value}`}>
-      <Text style={[styles.bandValue, small && styles.bandValueSmall, { color: colors.text }]} numberOfLines={1}>
-        {value}
-      </Text>
-      <Text style={[styles.bandLabel, { color: colors.coralInk }]}>{label}</Text>
-    </View>
+    <Text style={[styles.sectionLabel, first && styles.sectionLabelFirst, { color: colors.textMuted }]}>
+      {text.toUpperCase()}
+    </Text>
   );
 }
 
-/** Solo or Group in the lower band: an icon, the word and the number. */
-function Companion({ icon, label, value }: { icon: 'person' | 'people'; label: string; value: number }) {
-  const { colors } = useTheme();
+/** One headline number in its own white tile: a small capital label over a big figure. */
+function StatTile({ label, value, size, wide }: { label: string; value: number | string; size: number; wide?: boolean }) {
+  const { colors, mode } = useTheme();
   return (
-    <View style={styles.companion} accessibilityLabel={`${label.toLowerCase()}: ${value}`}>
-      <Ionicons name={icon} size={17} color={colors.accent} />
-      <Text style={[styles.companionLabel, { color: colors.text }]}>{label}</Text>
-      <Text style={[styles.companionValue, { color: colors.text }]}>{value}</Text>
+    <View
+      accessibilityLabel={`${label.toLowerCase()}: ${value}`}
+      style={[
+        styles.tile,
+        wide && styles.tileWide,
+        { backgroundColor: colors.surface, borderColor: colors.borderSoft, shadowColor: mode === 'light' ? '#1A2A42' : '#000000' },
+      ]}
+    >
+      <Text style={[styles.tileLabel, { color: colors.textMuted }]}>{label.toUpperCase()}</Text>
+      <Text
+        style={[styles.tileValue, { color: colors.coralInk, fontSize: size, lineHeight: Math.round(size * 1.4) }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
@@ -277,7 +311,7 @@ const styles = StyleSheet.create({
   top: {
     paddingHorizontal: 16,
     // A clear gap between the hero card and the buttons.
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   hero: {
     flexDirection: 'row',
@@ -316,11 +350,11 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   actionButton: {
     flex: 1,
-    height: 46,
+    height: 48,
     borderRadius: RADIUS.pill,
     borderWidth: 1,
     flexDirection: 'row',
@@ -352,68 +386,90 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   stack: {
+    gap: 12,
+  },
+  sectionLabel: {
+    ...TYPE.eyebrow,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    marginTop: 16,
+    marginBottom: -2,
+    marginLeft: 4,
+  },
+  sectionLabelFirst: {
+    marginTop: 8,
+  },
+  tileRow: {
+    flexDirection: 'row',
     gap: 10,
   },
-  band: {
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  bandTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 10,
-    paddingBottom: 8,
-  },
-  bandNumber: {
+  tile: {
     flex: 1,
     minWidth: 0,
-    alignItems: 'center',
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 10,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
   },
-  bandDivider: {
-    width: StyleSheet.hairlineWidth * 2,
-    height: 38,
-    backgroundColor: 'rgba(59,95,148,0.22)',
+  tileWide: {
+    flex: 1.8,
   },
-  bandValue: {
-    fontFamily: SERIF,
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: '700',
-    letterSpacing: -0.6,
-    fontVariant: ['tabular-nums'],
-  },
-  bandValueSmall: {
-    fontSize: 22,
-  },
-  bandLabel: {
+  tileLabel: {
     ...TYPE.eyebrow,
-    fontSize: 9.5,
+    fontSize: 10,
     letterSpacing: 1.2,
   },
-  bandBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: 'rgba(255,255,255,0.58)',
-    paddingVertical: 11,
+  tileValue: {
+    fontFamily: HOME_NUMBER_FONT,
+    fontSize: 30,
+    lineHeight: 42,
+    fontWeight: '400',
+    letterSpacing: 0,
+    marginTop: 2,
+    fontVariant: ['lining-nums', 'tabular-nums'],
   },
-  companion: {
+  companionCard: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  companionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  companionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
+  },
+  splitBar: {
+    flexDirection: 'row',
+    height: 10,
+    borderRadius: 5,
+    overflow: 'hidden',
+  },
+  splitGap: {
+    width: 3,
   },
   companionLabel: {
     fontSize: 14,
     fontWeight: '700',
   },
   companionValue: {
-    fontFamily: SERIF,
+    fontFamily: HOME_NUMBER_FONT,
     fontSize: 21,
-    lineHeight: 25,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
+    lineHeight: 28,
+    fontWeight: '400',
+    fontVariant: ['lining-nums', 'tabular-nums'],
   },
   card: {
-    padding: 14,
+    padding: 18,
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     shadowOpacity: 0.06,
@@ -470,12 +526,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   monthCount: {
-    fontFamily: SERIF,
-    fontSize: 38,
-    lineHeight: 44,
-    fontWeight: '700',
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
+    fontFamily: HOME_NUMBER_FONT,
+    fontSize: 36,
+    lineHeight: 47,
+    fontWeight: '400',
+    letterSpacing: 0,
+    fontVariant: ['lining-nums', 'tabular-nums'],
   },
   monthUnit: {
     fontSize: 14,
@@ -485,12 +541,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   monthAmount: {
-    fontFamily: SERIF,
+    fontFamily: HOME_NUMBER_FONT,
     fontSize: 26,
-    lineHeight: 34,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
+    lineHeight: 36,
+    fontWeight: '400',
+    letterSpacing: 0,
+    fontVariant: ['lining-nums', 'tabular-nums'],
   },
   monthTitle: {
     flex: 1,

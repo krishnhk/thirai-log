@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACE, RADIUS, TYPE, INPUT_RESET, useTheme } from '../theme';
 import { upsertMovie } from '../api/movies';
-import { editFilm, filmYear, loadLibrary, resolvePoster, searchableFilms } from '../lib/library';
-import { holdSaving, notify } from '../lib/ui';
+import { deleteFilm, editFilm, filmYear, loadLibrary, resolvePoster, searchableFilms } from '../lib/library';
+import { confirmAction, holdSaving, notify } from '../lib/ui';
 import { Card } from '../components/Card';
 import { PosterPicker } from '../components/PosterPicker';
 import { ActionButton } from '../components/ActionButton';
 import { SavingOverlay } from '../components/SavingOverlay';
+
+// A big poster, centred above the fields, so it can be seen and replaced clearly.
+const POSTER_WIDTH = 168;
 
 function FieldError({ text }: { text: string }) {
   const { colors } = useTheme();
@@ -39,6 +42,7 @@ export default function AddMovieScreen() {
   // The film as saved, so Save can stay disabled until something changes.
   const [initial, setInitial] = useState<{ title: string; year: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [draftId] = useState(() => `draft-${Date.now()}`);
 
@@ -124,6 +128,35 @@ export default function AddMovieScreen() {
     }
   };
 
+  // Deleting a film also removes its viewings and watchlist entries, so the popup says how many.
+  const removeFilm = async () => {
+    if (!editId || deleting || saving) return;
+    const library = await loadLibrary();
+    const viewings = library.entries.filter((entry) => entry.movieId === editId).length;
+    const listed =
+      library.watchlist.filter((item) => item.movieId === editId).length +
+      library.annual.reduce((sum, list) => sum + list.movies.filter((item) => item.movieId === editId).length, 0);
+    const parts: string[] = [];
+    if (viewings > 0) parts.push(`${viewings} ${viewings === 1 ? 'viewing' : 'viewings'}`);
+    if (listed > 0) parts.push(`${listed} watchlist ${listed === 1 ? 'entry' : 'entries'}`);
+    const note = parts.length > 0 ? `
+
+This also deletes ${parts.join(' and ')} for this film.` : '';
+    confirmAction('Delete film', `Delete “${title.trim() || 'this film'}” from your films?${note}`, async () => {
+      setDeleting(true);
+      const startedAt = Date.now();
+      try {
+        await deleteFilm(editId);
+        await holdSaving(startedAt);
+        router.navigate('/films');
+      } catch {
+        notify('Could not delete', 'This film could not be deleted. Please try again.');
+      } finally {
+        setDeleting(false);
+      }
+    });
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
@@ -140,7 +173,7 @@ export default function AddMovieScreen() {
               uri={poster}
               title={title || 'New film'}
               movieId={draftId}
-              width={96}
+              width={POSTER_WIDTH}
               onChange={setPoster}
               uploadPlaceholder
             />
@@ -201,18 +234,33 @@ export default function AddMovieScreen() {
           </Text>
         </Card>
 
-        <View style={styles.actions}>
+        <View style={[styles.actions, editId ? styles.actionsRow : null]}>
+          {editId ? (
+            <Pressable
+              onPress={removeFilm}
+              accessibilityRole="button"
+              accessibilityLabel="Delete film"
+              style={({ pressed }) => [
+                styles.deleteButton,
+                { backgroundColor: `${colors.rose}14`, borderColor: `${colors.rose}66` },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons name="trash-outline" size={19} color={colors.rose} />
+            </Pressable>
+          ) : null}
           <ActionButton
             label={editId ? 'Save changes' : 'Save film'}
             icon="checkmark"
             onPress={save}
             loading={saving}
             disabled={unchanged}
-            fullWidth
+            fullWidth={!editId}
+            style={editId ? styles.saveButton : undefined}
           />
         </View>
       </ScrollView>
-      <SavingOverlay visible={saving} />
+      <SavingOverlay visible={saving || deleting} label={deleting ? 'Deleting…' : 'Saving…'} />
     </View>
   );
 }
@@ -250,13 +298,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   topRow: {
-    flexDirection: 'row',
-    gap: 14,
+    alignItems: 'center',
+    gap: 18,
   },
   fields: {
-    flex: 1,
+    alignSelf: 'stretch',
     minWidth: 0,
-    gap: 10,
+    gap: 12,
   },
   label: {
     ...TYPE.caption,
@@ -289,5 +337,21 @@ const styles = StyleSheet.create({
   actions: {
     paddingHorizontal: 12,
     marginTop: 12,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  deleteButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveButton: {
+    flex: 1,
   },
 });

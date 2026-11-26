@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
-import { RADIUS, SERIF, SPACE, TYPE, useTheme } from '../theme';
+import { RADIUS, NUMBER_FONT, SPACE, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { resolvePoster, type ViewingEntry } from '../lib/library';
 import { MONTH_NAMES, toDate } from '../lib/format';
@@ -249,7 +249,7 @@ export default function DiaryScreen() {
                               <Ionicons
                                 name={entry.companion === 'alone' ? 'person' : 'people'}
                                 size={19}
-                                color={colors.accent}
+                                color="#9DBBE6"
                               />
                             </View>
                           ) : null}
@@ -354,11 +354,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   yearTitle: {
-    fontFamily: SERIF,
+    fontFamily: NUMBER_FONT,
     fontSize: 26,
-    lineHeight: 30,
-    fontWeight: '700',
-    letterSpacing: -0.6,
+    lineHeight: 34,
+    fontWeight: '400',
+    letterSpacing: 0,
     fontVariant: ['tabular-nums'],
   },
   yearCount: {
@@ -407,11 +407,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dayNumber: {
-    fontFamily: SERIF,
+    fontFamily: NUMBER_FONT,
     fontSize: 22,
-    lineHeight: 25,
-    fontWeight: '700',
-    letterSpacing: -0.5,
+    lineHeight: 29,
+    fontWeight: '400',
+    letterSpacing: 0,
     fontVariant: ['tabular-nums'],
   },
   weekday: {

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme';
 
 interface MonthTrendProps {
@@ -8,66 +8,52 @@ interface MonthTrendProps {
   labels: string[];
   selectedIndex: number;
   onSelect: (index: number) => void;
+  /** Colour of the bars that are not picked (a light shade of the accent). */
   color: string;
-  /** Height of the line area. */
+  /** Height of the bar area. */
   height?: number;
 }
 
+const BAR_WIDTH = 18;
+const MIN_BAR = 4;
+
 /**
- * A thin trend line through the twelve months with a dot on the selected one, and the month names
- * underneath (tap one to select it). The line is drawn from small rotated Views, so no SVG is needed.
+ * "Rounded bars": one soft pill-shaped bar per month, the picked month in the accent colour. Tap a bar
+ * (anywhere in its column) or a month name to pick a month. No axis and no gridlines.
  */
-export function MonthTrend({ values, labels, selectedIndex, onSelect, color, height = 40 }: MonthTrendProps) {
+export function MonthTrend({ values, labels, selectedIndex, onSelect, color, height = 92 }: MonthTrendProps) {
   const { colors } = useTheme();
-  const [width, setWidth] = useState(0);
-
   const max = Math.max(1, ...values);
-  const count = values.length;
-  const padding = 7;
-  const point = (index: number) => ({
-    x: padding + (index * (width - padding * 2)) / Math.max(1, count - 1),
-    y: height - 6 - (values[index] / max) * (height - 14),
-  });
-
-  const segments = [];
-  if (width > 0) {
-    for (let index = 0; index < count - 1; index += 1) {
-      const from = point(index);
-      const to = point(index + 1);
-      const length = Math.hypot(to.x - from.x, to.y - from.y);
-      const angle = (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
-      segments.push(
-        <View
-          key={index}
-          style={[
-            styles.segment,
-            {
-              width: length + 1,
-              left: (from.x + to.x) / 2 - (length + 1) / 2,
-              top: (from.y + to.y) / 2 - 1.1,
-              backgroundColor: color,
-              transform: [{ rotate: `${angle}deg` }],
-            },
-          ]}
-        />
-      );
-    }
-  }
-  const selected = width > 0 ? point(selectedIndex) : null;
 
   return (
     <View>
-      <View style={{ height }} onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}>
-        {segments}
-        {selected ? (
-          <View
-            style={[
-              styles.dot,
-              { left: selected.x - 6, top: selected.y - 6, backgroundColor: colors.primary, borderColor: colors.surface },
-            ]}
-          />
-        ) : null}
+      <View style={[styles.bars, { height }]}>
+        {values.map((value, index) => {
+          const active = index === selectedIndex;
+          const barHeight = Math.max(MIN_BAR, (value / max) * (height - 6));
+          return (
+            <Pressable
+              key={`bar-${index}`}
+              onPress={() => onSelect(index)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`${labels[index]}: ${value}`}
+              style={styles.column}
+            >
+              <View
+                style={{
+                  width: BAR_WIDTH,
+                  height: barHeight,
+                  borderRadius: BAR_WIDTH / 2,
+                  backgroundColor: active ? colors.accent : color,
+                  opacity: active ? 1 : 0.6,
+                }}
+              />
+            </Pressable>
+          );
+        })}
       </View>
+
       <View style={styles.labels}>
         {labels.map((label, index) => {
           const active = index === selectedIndex;
@@ -76,9 +62,7 @@ export function MonthTrend({ values, labels, selectedIndex, onSelect, color, hei
               key={`${label}-${index}`}
               onPress={() => onSelect(index)}
               hitSlop={{ top: 8, bottom: 8 }}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={`${label}: ${values[index]}`}
+              accessible={false}
               style={styles.labelCell}
             >
               <Text
@@ -98,17 +82,15 @@ export function MonthTrend({ values, labels, selectedIndex, onSelect, color, hei
 }
 
 const styles = StyleSheet.create({
-  segment: {
-    position: 'absolute',
-    height: 2.2,
-    borderRadius: 1.1,
+  bars: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
   },
-  dot: {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
+  column: {
+    flex: 1,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   labels: {
     flexDirection: 'row',

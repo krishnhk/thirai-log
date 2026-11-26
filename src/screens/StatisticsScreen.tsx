@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { SPACE, RADIUS, SERIF, TYPE, useTheme } from '../theme';
+import { SPACE, RADIUS, NUMBER_FONT, SERIF, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { resolvePoster, type ViewingEntry } from '../lib/library';
 import { formatDate, toDate } from '../lib/format';
@@ -123,8 +123,6 @@ export default function StatisticsScreen() {
               icon="stats-chart-outline"
               title="No statistics yet"
               message="Log a few theatre visits and your viewing patterns will come to life here."
-              actionLabel="Log a viewing"
-              onAction={() => router.navigate('/log')}
             />
           </View>
         ) : (
@@ -241,11 +239,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
   },
   heroNumber: {
-    fontFamily: SERIF,
+    fontFamily: NUMBER_FONT,
     fontSize: 68,
-    lineHeight: 76,
-    fontWeight: '700',
-    letterSpacing: -1.5,
+    lineHeight: 89,
+    fontWeight: '400',
+    letterSpacing: 0,
     fontVariant: ['tabular-nums'],
   },
   heroSub: {
@@ -272,11 +270,11 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   statValue: {
-    fontFamily: SERIF,
+    fontFamily: NUMBER_FONT,
     fontSize: 26,
-    lineHeight: 30,
-    fontWeight: '700',
-    letterSpacing: -0.5,
+    lineHeight: 34,
+    fontWeight: '400',
+    letterSpacing: 0,
     fontVariant: ['tabular-nums'],
   },
   statValueSmall: {
@@ -319,13 +317,15 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   tdYear: {
-    fontFamily: SERIF,
+    fontFamily: NUMBER_FONT,
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   td: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontFamily: NUMBER_FONT,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '400',
     fontVariant: ['tabular-nums'],
   },
   colYear: {

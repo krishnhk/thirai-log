@@ -5,12 +5,14 @@ import { router, type Href } from 'expo-router';
 import { RADIUS, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { searchableFilms } from '../lib/library';
-import { exportBackup, importBackup } from '../lib/backup';
+import { eraseAllData, exportBackup, importBackup } from '../lib/backup';
 import { AppHeader } from '../components/AppHeader';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface RowItem {
+  /** Shown in the danger colour (for actions that delete data). */
+  danger?: boolean;
   icon: IconName;
   label: string;
   hint: string;
@@ -70,6 +72,18 @@ export default function LibraryScreen() {
         },
       ],
     },
+    {
+      title: 'DANGER ZONE',
+      rows: [
+        {
+          danger: true,
+          icon: 'trash-outline',
+          label: 'Erase all data',
+          hint: 'Delete everything and start empty',
+          onPress: () => eraseAllData(refresh),
+        },
+      ],
+    },
   ];
 
   return (
@@ -104,11 +118,11 @@ function ListRow({ row, divider }: { row: RowItem; divider: boolean }) {
         pressed && { backgroundColor: colors.accentSoft },
       ]}
     >
-      <View style={[styles.badge, { backgroundColor: colors.coralSoft }]}>
-        <Ionicons name={row.icon} size={18} color={colors.coralInk} />
+      <View style={[styles.badge, { backgroundColor: row.danger ? `${colors.rose}1F` : colors.coralSoft }]}>
+        <Ionicons name={row.icon} size={18} color={row.danger ? colors.rose : colors.coralInk} />
       </View>
       <View style={styles.rowText}>
-        <Text style={[styles.label, { color: colors.text }]}>{row.label}</Text>
+        <Text style={[styles.label, { color: row.danger ? colors.rose : colors.text }]}>{row.label}</Text>
         <Text style={[styles.hint, { color: colors.textMuted }]} numberOfLines={1}>
           {row.hint}
         </Text>

@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { INPUT_RESET, RADIUS, SERIF, SPACE, TYPE, useTheme } from '../theme';
+import { INPUT_RESET, RADIUS, NUMBER_FONT, SPACE, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { filmYear, resolvePoster, searchableFilms } from '../lib/library';
 import { Poster } from '../components/Poster';
@@ -39,6 +39,27 @@ export default function FilmsScreen() {
       .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : Number(b) - Number(a)))
       .map(([year, items]) => ({ year, items }));
   }, [films]);
+
+  // With no films at all there is nothing to search, so the screen is just the title and a
+  // "Add a film" card at the top (the search bar and the top-right button only appear once there are films).
+  if (!loading && searchableFilms(library).length === 0) {
+    return (
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Films</Text>
+        </View>
+        <View style={styles.emptyCenter}>
+          <EmptyState
+            icon="film-outline"
+            title="No films yet"
+            message="Add your first film to start your database."
+            actionLabel="Add a film"
+            onAction={() => router.push('/add-movie')}
+          />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -149,6 +170,13 @@ export default function FilmsScreen() {
 }
 
 const styles = StyleSheet.create({
+  emptyCenter: {
+    paddingTop: 8,
+    paddingHorizontal: 16,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+  },
   yearBlock: {
     marginTop: 6,
   },
@@ -160,11 +188,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   yearTitle: {
-    fontFamily: SERIF,
+    fontFamily: NUMBER_FONT,
     fontSize: 22,
-    lineHeight: 26,
-    fontWeight: '700',
-    letterSpacing: -0.4,
+    lineHeight: 29,
+    fontWeight: '400',
+    letterSpacing: 0,
     fontVariant: ['tabular-nums'],
   },
   yearLine: {

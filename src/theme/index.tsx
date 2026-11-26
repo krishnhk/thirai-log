@@ -63,6 +63,9 @@ export const SERIF = Platform.select({
   default: 'Georgia',
 }) as string;
 
+/** The rounded display face (same as the logo) used for every figure in the app. Loaded in app/_layout. */
+export const NUMBER_FONT = 'Righteous_400Regular';
+
 /** One scale for the whole app, so screens stop inventing font sizes. */
 export const TYPE = {
   display: { fontFamily: SERIF, fontSize: 30, fontWeight: '700', letterSpacing: -0.8 },
@@ -78,10 +81,10 @@ export const TYPE = {
     textTransform: 'uppercase',
   },
   number: {
-    fontFamily: SERIF,
+    fontFamily: NUMBER_FONT,
     fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.8,
+    fontWeight: '400',
+    letterSpacing: 0,
     fontVariant: ['tabular-nums'],
   },
 } as const;

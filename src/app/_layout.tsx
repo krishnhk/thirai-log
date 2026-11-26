@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { AnimatedSplash } from '../components/AnimatedSplash';
+import { DialogHost } from '../components/DialogHost';
 import { useFonts } from 'expo-font';
+import { Fraunces_500Medium } from '@expo-google-fonts/fraunces';
 import { Righteous_400Regular } from '@expo-google-fonts/righteous';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -55,7 +57,7 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({ Righteous_400Regular });
+  const [fontsLoaded, fontError] = useFonts({ Righteous_400Regular, Fraunces_500Medium });
   const [fontWaitOver, setFontWaitOver] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
 
@@ -77,6 +79,7 @@ export default function RootLayout() {
     <ThemeProvider>
       <View style={styles.root}>
         <RootNavigator />
+        <DialogHost />
         {ready && !splashDone ? <AnimatedSplash onDone={finishSplash} /> : null}
       </View>
     </ThemeProvider>

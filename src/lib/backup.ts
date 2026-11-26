@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { DATA_FILES, readJson, updateJson } from './storage';
+import { DATA_FILES, readJson, updateJson, writeJson } from './storage';
 import { isLocalPoster } from './posters';
 import { confirmAction, notify } from './ui';
 
@@ -151,7 +151,7 @@ async function pickBackupText(): Promise<string | null> {
 }
 
 /** Saves the poster images from a backup on this device and returns old path -> new path. */
-function restoreImages(images: BackupImages | undefined): Record<string, string> {
+async function restoreImages(images: BackupImages | undefined): Promise<Record<string, string>> {
   const map: Record<string, string> = {};
   if (Platform.OS === 'web' || !images) return map;
   try {
@@ -163,8 +163,9 @@ function restoreImages(images: BackupImages | undefined): Record<string, string>
       try {
         const extension = image.mime === 'image/png' ? 'png' : 'jpg';
         const file = new File(dir, `import-${Date.now()}-${index++}.${extension}`);
-        file.write(image.base64, { encoding: 'base64' });
-        map[oldPath] = file.uri;
+        // write() is asynchronous: wait for it, and only use the new path once the image is really saved.
+        await file.write(image.base64, { encoding: 'base64' });
+        if (file.exists) map[oldPath] = file.uri;
       } catch {
         // One unreadable image is skipped; the rest of the import continues.
       }
@@ -173,6 +174,16 @@ function restoreImages(images: BackupImages | undefined): Record<string, string>
     // Without a posters folder, films keep their old poster paths (and show the placeholder).
   }
   return map;
+}
+
+/** True for a poster stored on this device whose image file no longer exists. */
+function posterFileGone(path?: string): boolean {
+  if (Platform.OS === 'web' || !path || !isLocalPoster(path)) return false;
+  try {
+    return !new File(path).exists;
+  } catch {
+    return false;
+  }
 }
 
 export interface ImportSummary {
@@ -188,7 +199,7 @@ export interface ImportSummary {
  */
 async function applyBackup(data: BackupFile): Promise<ImportSummary> {
   const summary: ImportSummary = { viewings: 0, films: 0, theatres: 0, watchlistFilms: 0 };
-  const posterMap = restoreImages(data.images);
+  const posterMap = await restoreImages(data.images);
   const remap = (path?: string) => (path && posterMap[path] ? posterMap[path] : path);
 
   // Theatres first, so viewings can point at the right ones.
@@ -220,8 +231,10 @@ async function applyBackup(data: BackupFile): Promise<ImportSummary> {
       const posterPath = remap(incoming.posterPath);
       const index = list.findIndex((item) => item.id === incoming.id);
       if (index >= 0) {
-        // Keep the film as it is; only fill in a missing poster.
-        if (!list[index].posterPath && posterPath) list[index] = { ...list[index], posterPath };
+        // Keep the film as it is; only fill in a missing poster (or one whose image file is gone).
+        if ((!list[index].posterPath || posterFileGone(list[index].posterPath)) && posterPath) {
+          list[index] = { ...list[index], posterPath };
+        }
         return;
       }
       list.push({ ...incoming, posterPath });
@@ -324,9 +337,50 @@ export async function importBackup(onDone?: () => void): Promise<void> {
           notify('Import failed', 'Could not add the data from this file.');
         }
       },
-      'Import'
+      'Import',
+      { danger: false }
     );
   } catch {
     notify('Import failed', 'Could not read this file.');
   }
+}
+
+
+/** Empties every data file and removes the poster images saved on this device. */
+async function wipeEverything(): Promise<void> {
+  await writeJson(DATA_FILES.viewingEntries, []);
+  await writeJson(DATA_FILES.watchlistMovies, []);
+  await writeJson(DATA_FILES.annualWatchlists, []);
+  await writeJson(DATA_FILES.movies, []);
+  await writeJson(DATA_FILES.theatres, []);
+  await writeJson(DATA_FILES.theatreImport, null);
+  if (Platform.OS === 'web') return;
+  try {
+    const dir = new Directory(Paths.document, 'posters');
+    if (dir.exists) dir.delete();
+  } catch {
+    // Poster files that cannot be removed are harmless; the data is already gone.
+  }
+}
+
+/**
+ * Formats the app: deletes every viewing, film, theatre and watchlist. It asks once, saying it cannot be
+ * undone and suggesting an export first. `onDone` runs after the data is gone so screens can refresh.
+ */
+export function eraseAllData(onDone?: () => void): void {
+  confirmAction(
+    'Erase all data?',
+    'This deletes every viewing, film, theatre and watchlist on this device. It cannot be undone. ' +
+      'Export a backup first if you might want anything back.',
+    async () => {
+      try {
+        await wipeEverything();
+        onDone?.();
+        notify('All data erased', 'The app is now empty.');
+      } catch {
+        notify('Could not erase', 'Something went wrong, and some data may remain. Please try again.');
+      }
+    },
+    'Erase everything'
+  );
 }

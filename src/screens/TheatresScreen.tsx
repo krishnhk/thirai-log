@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { INPUT_RESET, RADIUS, SERIF, SPACE, TYPE, useTheme } from '../theme';
+import { INPUT_RESET, RADIUS, NUMBER_FONT, SERIF, SPACE, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import {
   THEATRE_DISTRICT_MAX,
@@ -81,6 +81,8 @@ export default function TheatresScreen() {
     () => legacyTheatreNames(library.entries, theatres),
     [library.entries, theatres]
   );
+  // With no theatres at all there is nothing to count or search, so only the "Add a theatre" card shows.
+  const noTheatres = !loading && theatres.length === 0;
   const showPrompt = !loading && dismissed === false && legacy.length > 0;
 
   const openNew = () => {
@@ -168,14 +170,16 @@ export default function TheatresScreen() {
         <Text style={[styles.title, { color: colors.text }]}>Theatres</Text>
       </View>
 
-      <View style={styles.summaryRow}>
-        <SummaryTile value={theatres.length} label={theatres.length === 1 ? 'Theatre visited' : 'Theatres visited'} tone="blue" />
-        <SummaryTile
-          value={districtCount(theatres)}
-          label={districtCount(theatres) === 1 ? 'District covered' : 'Districts covered'}
-          tone="mint"
-        />
-      </View>
+      {noTheatres ? null : (
+        <View style={styles.summaryRow}>
+          <SummaryTile value={theatres.length} label={theatres.length === 1 ? 'Theatre visited' : 'Theatres visited'} tone="blue" />
+          <SummaryTile
+            value={districtCount(theatres)}
+            label={districtCount(theatres) === 1 ? 'District covered' : 'Districts covered'}
+            tone="mint"
+          />
+        </View>
+      )}
 
       {showPrompt ? (
         <Card style={styles.prompt}>
@@ -201,21 +205,23 @@ export default function TheatresScreen() {
         </Card>
       ) : null}
 
-      <View style={styles.toolbar}>
-        <View style={[styles.searchRow, { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft }]}>
-          <Ionicons name="search" size={16} color={colors.textMuted} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search name or district"
-            placeholderTextColor={colors.textMuted}
-            autoCorrect={false}
-            accessibilityLabel="Search theatres"
-            style={[styles.searchInput, INPUT_RESET, { color: colors.text }]}
-          />
+      {noTheatres ? null : (
+        <View style={styles.toolbar}>
+          <View style={[styles.searchRow, { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft }]}>
+            <Ionicons name="search" size={16} color={colors.textMuted} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search name or district"
+              placeholderTextColor={colors.textMuted}
+              autoCorrect={false}
+              accessibilityLabel="Search theatres"
+              style={[styles.searchInput, INPUT_RESET, { color: colors.text }]}
+            />
+          </View>
+          <ActionButton label="Add" icon="add" compact onPress={openNew} style={styles.addButton} />
         </View>
-        <ActionButton label="Add" icon="add" compact onPress={openNew} style={styles.addButton} />
-      </View>
+      )}
 
       <SectionList
         sections={sections}
@@ -232,22 +238,20 @@ export default function TheatresScreen() {
           </View>
         )}
         renderItem={({ item }) => (
-          <Pressable
-            onPress={() => router.push({ pathname: '/theatre/[theatreId]', params: { theatreId: item.id } })}
-            accessibilityRole="button"
-            accessibilityLabel={`${item.name}, ${item.district}. Show all visits`}
-            style={({ pressed }) => [
-              styles.row,
-              { backgroundColor: colors.surface, borderColor: colors.borderSoft },
-              pressed && { opacity: 0.8 },
-            ]}
-          >
-            <View style={[styles.rowIcon, { backgroundColor: colors.coralSoft }]}>
-              <Ionicons name="location" size={16} color={colors.coralInk} />
-            </View>
-            <View style={styles.rowText}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>{item.name}</Text>
-            </View>
+          <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
+            <Pressable
+              onPress={() => router.push({ pathname: '/theatre/[theatreId]', params: { theatreId: item.id } })}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.name}, ${item.district}. Show all visits`}
+              style={({ pressed }) => [styles.rowMain, pressed && { opacity: 0.8 }]}
+            >
+              <View style={[styles.rowIcon, { backgroundColor: colors.coralSoft }]}>
+                <Ionicons name="location" size={16} color={colors.coralInk} />
+              </View>
+              <View style={styles.rowText}>
+                <Text style={[styles.rowTitle, { color: colors.text }]}>{item.name}</Text>
+              </View>
+            </Pressable>
             <Pressable
               hitSlop={8}
               onPress={() => openEdit(item)}
@@ -261,12 +265,11 @@ export default function TheatresScreen() {
             >
               <EditIcon size={15} color={colors.coralInk} />
             </Pressable>
-          </Pressable>
+          </View>
         )}
         ListEmptyComponent={
           loading ? undefined : (
             <EmptyState
-              compact
               icon="location-outline"
               title={query.trim() ? 'No matching theatres' : 'No theatres yet'}
               message={
@@ -591,10 +594,10 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.xl,
   },
   tileValue: {
-    fontFamily: SERIF,
+    fontFamily: NUMBER_FONT,
     fontSize: 28,
-    lineHeight: 32,
-    fontWeight: '700',
+    lineHeight: 37,
+    fontWeight: '400',
     fontVariant: ['tabular-nums'],
   },
   tileLabel: {
@@ -701,6 +704,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 6,
+  },
+  rowMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   rowIcon: {
     width: 32,
