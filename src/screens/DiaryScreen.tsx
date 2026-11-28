@@ -21,6 +21,7 @@ import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Poster } from '../components/Poster';
 import { YearStrip } from '../components/YearStrip';
+import { AddPill } from '../components/AddPill';
 
 interface MonthGroup {
   key: string;
@@ -37,6 +38,8 @@ interface YearGroup {
 
 // Where the list was scrolled to. Kept outside the screen so it survives the screen being rebuilt after a save.
 let lastScrollY = 0;
+// The year that was open, kept for the same reason, so editing a viewing in 2024 returns to 2024.
+let lastPickedYear: number | null = null;
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
@@ -47,8 +50,6 @@ const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 export default function DiaryScreen() {
   const { colors } = useTheme();
   const { library, loading } = useLibrary();
-  // The screen ends where the tab bar begins, so the button sits just 16px above the bar.
-  const fabBottom = 16;
 
   // Every year, newest first: each year holds its months, each month holds its viewings.
   const yearGroups = useMemo(() => {
@@ -83,11 +84,12 @@ export default function DiaryScreen() {
   const newestYear = yearGroups[0]?.year ?? currentYear;
   const oldestYear = Math.min(yearGroups[yearGroups.length - 1]?.year ?? currentYear, newestYear);
   const upperYear = Math.max(newestYear, currentYear);
-  const [pickedYear, setPickedYear] = useState<number | null>(null);
+  const [pickedYear, setPickedYear] = useState<number | null>(lastPickedYear);
   const openYear = Math.min(Math.max(pickedYear ?? newestYear, oldestYear), upperYear);
   const openGroup = yearGroups.find((group) => group.year === openYear);
   const changeYear = (year: number) => {
     lastScrollY = 0;
+    lastPickedYear = year;
     scrollRef.current?.scrollTo({ y: 0, animated: false });
     setPickedYear(year);
   };
@@ -148,7 +150,7 @@ export default function DiaryScreen() {
         scrollEventThrottle={16}
         contentContainerStyle={{
           // Clears the Log button and the floating tab bar so the last card can scroll fully into view.
-          paddingBottom: fabBottom + 56 + 20,
+          paddingBottom: 96,
           width: '100%',
           maxWidth: 720,
           alignSelf: 'center',
@@ -277,22 +279,7 @@ export default function DiaryScreen() {
 
       </View>
 
-      <Pressable
-        onPress={() => router.navigate('/log')}
-        accessibilityRole="button"
-        accessibilityLabel="Log a viewing"
-        style={({ pressed }) => [
-          styles.fab,
-          {
-            bottom: fabBottom,
-            backgroundColor: colors.accent,
-            shadowColor: colors.accent,
-          },
-          pressed && { opacity: 0.85, transform: [{ scale: 0.95 }] },
-        ]}
-      >
-        <Ionicons name="add" size={28} color={colors.onAccent} />
-      </Pressable>
+      <AddPill label="Log film" onPress={() => router.navigate('/log')} />
     </View>
   );
 }
@@ -300,21 +287,6 @@ export default function DiaryScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-  },
-  // Inset 24 from the edge, so it sits inside the month cards' edge (they have 12 of margin) instead of hugging the screen.
-  fab: {
-    position: 'absolute',
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 8,
-    zIndex: 10,
   },
   loading: {
     paddingTop: SPACE.xxl,

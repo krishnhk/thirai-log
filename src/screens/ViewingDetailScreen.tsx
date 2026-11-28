@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RADIUS, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
@@ -69,9 +70,8 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
     });
   };
 
-  // Poster sized to leave room for the title, the details and the Edit button on short phones.
-  const reserved = showDone ? 520 : 440;
-  const posterWidth = Math.round(Math.min(width * 0.44, (height - insets.top - reserved) / 1.5, 200));
+  // The poster runs edge to edge across the top and fades into the page; the title overlaps the fade.
+  const heroHeight = Math.round(Math.min(height * 0.44, width * 1.25));
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -86,99 +86,117 @@ export default function ViewingDetailScreen({ entryId, showDone }: ViewingDetail
           </Text>
         </View>
       ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.content, { paddingVertical: 16 }]}
-        >
-          <Poster
-            uri={resolvePoster(library, entry.movieId, entry.title)}
-            title={entry.title}
-            width={posterWidth}
-            radius={RADIUS.lg}
-          />
-
-          <Text
-            style={[
-              styles.title,
-              { color: colors.text },
-              // Long titles get a smaller size, so the whole name stays visible.
-              entry.title.length > 60 ? { fontSize: 21, lineHeight: 27 } : entry.title.length > 32 ? { fontSize: 24, lineHeight: 30 } : null,
-            ]}
-            numberOfLines={5}
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
-          >
-            {entry.title}
-          </Text>
-          {place ? (
-            <Text style={[styles.place, { color: colors.textMuted }]} numberOfLines={1}>
-              {place.district ? `${place.name} · ${place.district}` : place.name}
-            </Text>
-          ) : null}
-          <View style={[styles.rule, { backgroundColor: colors.border }]} />
-
-          <View style={styles.list}>
-            <DetailRow icon="calendar" label="Watched on" value={longDate(entry.watchedAt)} />
-            {place ? (
-              <>
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <DetailRow icon="location" label="Theatre" value={place.name} hint={place.district} />
-              </>
-            ) : null}
-            {entry.companion ? (
-              <>
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <DetailRow
-                  icon={entry.companion === 'alone' ? 'person' : 'people'}
-                  label="Watched"
-                  value={COMPANION_LABELS[entry.companion]}
-                />
-              </>
-            ) : null}
-            {entry.price !== undefined ? (
-              <>
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <DetailRow icon="cash" label="Spent" value={`₹${entry.price.toLocaleString('en-IN')}`} />
-              </>
-            ) : null}
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+          <View style={{ height: heroHeight }}>
+            <Poster
+              uri={resolvePoster(library, entry.movieId, entry.title)}
+              title={entry.title}
+              width={width}
+              radius={0}
+              style={{ height: heroHeight, borderWidth: 0 }}
+            />
+            <LinearGradient
+              colors={[`${colors.background}00`, `${colors.background}D9`, colors.background]}
+              locations={[0, 0.7, 1]}
+              style={styles.heroFade}
+              pointerEvents="none"
+            />
           </View>
 
-          <View style={styles.actions}>
-            <Pressable
-              onPress={() =>
-                router.navigate({
-                  pathname: '/log',
-                  params: { editEntryId: entry.id, from: 'diary' },
-                })
-              }
-              accessibilityRole="button"
-              accessibilityLabel={`Edit ${entry.title}`}
-              style={({ pressed }) => [
-                styles.actionButton,
-                { borderColor: colors.accent },
-                pressed && { opacity: 0.6 },
+          <View style={styles.body}>
+            <Text
+              style={[
+                styles.title,
+                { color: colors.text },
+                // Long titles get a smaller size, so the whole name stays visible.
+                entry.title.length > 60 ? { fontSize: 22, lineHeight: 28 } : entry.title.length > 32 ? { fontSize: 26, lineHeight: 32 } : null,
               ]}
+              numberOfLines={5}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
             >
-              <EditIcon size={15} color={colors.accent} />
-              <Text style={[styles.actionLabel, { color: colors.accent }]}>Edit</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleDelete}
-              disabled={deleting}
-              accessibilityRole="button"
-              accessibilityLabel={`Delete ${entry.title}`}
-              style={({ pressed }) => [
-                styles.actionButton,
-                { borderColor: colors.rose },
-                (pressed || deleting) && { opacity: 0.6 },
-              ]}
-            >
-              <Ionicons name="trash-outline" size={17} color={colors.rose} />
-              <Text style={[styles.actionLabel, { color: colors.rose }]}>Delete</Text>
-            </Pressable>
+              {entry.title}
+            </Text>
+            {place ? (
+              <Text style={[styles.place, { color: colors.textMuted }]} numberOfLines={1}>
+                {place.district ? `${place.name} · ${place.district}` : place.name}
+              </Text>
+            ) : null}
+
+            {/* The theatre is already under the title, so it is not repeated as a row. */}
+            <View style={styles.list}>
+              <DetailRow icon="calendar" label="Watched on" value={longDate(entry.watchedAt)} />
+              {entry.companion ? (
+                <>
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <DetailRow
+                    icon={entry.companion === 'alone' ? 'person' : 'people'}
+                    label="Watched"
+                    value={COMPANION_LABELS[entry.companion]}
+                  />
+                </>
+              ) : null}
+              {entry.price !== undefined ? (
+                <>
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <DetailRow icon="cash" label="Spent" value={`₹${entry.price.toLocaleString('en-IN')}`} />
+                </>
+              ) : null}
+            </View>
+
+            <View style={styles.actions}>
+              <Pressable
+                onPress={() =>
+                  router.navigate({
+                    pathname: '/log',
+                    params: { editEntryId: entry.id, from: 'viewing' },
+                  })
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${entry.title}`}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  { borderColor: colors.accent },
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <EditIcon size={15} color={colors.accent} />
+                <Text style={[styles.actionLabel, { color: colors.accent }]}>Edit</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleDelete}
+                disabled={deleting}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${entry.title}`}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  { borderColor: colors.rose },
+                  (pressed || deleting) && { opacity: 0.6 },
+                ]}
+              >
+                <Ionicons name="trash-outline" size={17} color={colors.rose} />
+                <Text style={[styles.actionLabel, { color: colors.rose }]}>Delete</Text>
+              </Pressable>
+            </View>
           </View>
         </ScrollView>
       )}
+
+      {/* Round back button over the poster. */}
+      {!loading && entry ? (
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.navigate('/diary'))}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          style={({ pressed }) => [
+            styles.backFloat,
+            { top: insets.top + 10, backgroundColor: `${colors.background}B3`, borderColor: colors.borderSoft },
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
+        </Pressable>
+      ) : null}
 
       {showDone && entry ? (
         <View
@@ -263,21 +281,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   content: {
-    // Fills the space and centres the poster and details, so top and bottom gaps are equal.
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
     width: '100%',
-    maxWidth: 560,
+    maxWidth: 720,
     alignSelf: 'center',
+  },
+  heroFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '60%',
+  },
+  body: {
+    // Pulled up so the title sits on the fade.
+    marginTop: -44,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  backFloat: {
+    position: 'absolute',
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     ...TYPE.title,
     fontSize: 28,
     lineHeight: 34,
-    textAlign: 'center',
-    marginTop: 18,
+    textAlign: 'left',
+    marginTop: 0,
     // Use the full width and break long words instead of running past the screen edge.
     width: '100%',
     ...({ wordBreak: 'break-word', overflowWrap: 'anywhere' } as object),
@@ -286,7 +323,8 @@ const styles = StyleSheet.create({
     ...TYPE.small,
     fontSize: 13,
     marginTop: 4,
-    textAlign: 'center',
+    marginBottom: 14,
+    textAlign: 'left',
   },
   rule: {
     width: '60%',

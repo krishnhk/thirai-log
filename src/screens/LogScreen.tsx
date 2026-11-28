@@ -163,16 +163,25 @@ export default function LogScreen() {
     router.setParams({ editEntryId: undefined, from: undefined });
   };
 
-  // Editing: discard changes (the saved entry is untouched) and go back to where the edit started.
-  const handleCancel = useCallback(() => {
-    resetForm();
-    if (from === 'diary') router.navigate('/diary');
-  }, [from]);
+  // Editing starts from a viewing page, and that is where it returns to, with the Diary underneath it. The stack is
+  // rebuilt (Diary, then the viewing) so the page is shown once and Back from it goes to the Diary.
+  const goToViewing = (entryId: string) => {
+    if (router.canDismiss()) router.dismissAll();
+    router.navigate('/diary');
+    router.push({ pathname: '/viewing/[entryId]', params: { entryId } });
+  };
 
-  // Android back button while editing from the Diary returns to the Diary.
+  // Editing: discard changes (the saved entry is untouched) and go back to the viewing page.
+  const handleCancel = useCallback(() => {
+    const id = editEntryId;
+    resetForm();
+    if (from === 'viewing' && id) goToViewing(id);
+  }, [from, editEntryId]);
+
+  // Android back button while editing from a viewing page returns to that page.
   useFocusEffect(
     useCallback(() => {
-      if (!editEntryId || from !== 'diary') return undefined;
+      if (!editEntryId || from !== 'viewing') return undefined;
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
         handleCancel();
         return true;
@@ -244,6 +253,7 @@ export default function LogScreen() {
       return;
     }
 
+    let keepSaving = false;
     try {
       setSaving(true);
       const startedAt = Date.now();
@@ -277,13 +287,21 @@ export default function LogScreen() {
       await holdSaving(startedAt);
 
       const wasEditing = Boolean(editingId);
-      const returnToDiary = from === 'diary';
-      resetForm();
-      await refresh();
-      if (returnToDiary) {
-        router.navigate('/diary');
+      const returnToViewing = from === 'viewing' && wasEditing;
+      if (returnToViewing) {
+        // Leave while the saving page is still showing, and clear the form only once the viewing page is on top,
+        // so the edit form never flashes empty (or unsaved) in between.
+        await refresh();
+        goToViewing(entry.id);
+        keepSaving = true;
+        setTimeout(() => {
+          resetForm();
+          setSaving(false);
+        }, 600);
         return;
       }
+      resetForm();
+      await refresh();
       if (!wasEditing) {
         router.push({ pathname: '/viewing/[entryId]', params: { entryId: entry.id, justLogged: '1' } });
         return;
@@ -295,7 +313,7 @@ export default function LogScreen() {
     } catch {
       setBanner({ type: 'error', text: 'Could not save this viewing. Try again.' });
     } finally {
-      setSaving(false);
+      if (!keepSaving) setSaving(false);
     }
   };
 

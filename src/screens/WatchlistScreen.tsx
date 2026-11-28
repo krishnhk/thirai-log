@@ -32,6 +32,7 @@ import { AppHeader } from '../components/AppHeader';
 import { ProgressRing } from '../components/ProgressRing';
 import { Poster } from '../components/Poster';
 import { YearStrip } from '../components/YearStrip';
+import { AddPill } from '../components/AddPill';
 import { ActionButton } from '../components/ActionButton';
 
 export default function WatchlistScreen() {
@@ -374,20 +375,15 @@ export default function WatchlistScreen() {
             )}
           </ScrollView>
 
-          {/* Add film floats at the bottom-right, above the tab bar. */}
-          <View style={styles.floatAdd} pointerEvents="box-none">
-            <ActionButton
-              label="Add film"
-              icon="add"
-              compact
-              onPress={() => {
-                // Added to the year that is open, so the sheet does not ask for a year.
-                setAddYear(String(openYear));
-                setYearFixed(true);
-                setAddOpen(true);
-              }}
-            />
-          </View>
+          {/* Add film floats at the bottom right. It is added to the year that is open, so the sheet does not ask for a year. */}
+          <AddPill
+            label="Add film"
+            onPress={() => {
+              setAddYear(String(openYear));
+              setYearFixed(true);
+              setAddOpen(true);
+            }}
+          />
         </>
       )}
 
