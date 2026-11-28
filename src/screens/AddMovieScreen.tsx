@@ -138,7 +138,7 @@ export default function AddMovieScreen() {
       library.annual.reduce((sum, list) => sum + list.movies.filter((item) => item.movieId === editId).length, 0);
     const parts: string[] = [];
     if (viewings > 0) parts.push(`${viewings} ${viewings === 1 ? 'viewing' : 'viewings'}`);
-    if (listed > 0) parts.push(`${listed} watchlist ${listed === 1 ? 'entry' : 'entries'}`);
+    if (listed > 0) parts.push(`${listed} bucket list ${listed === 1 ? 'entry' : 'entries'}`);
     const note = parts.length > 0 ? `
 
 This also deletes ${parts.join(' and ')} for this film.` : '';

@@ -12,14 +12,15 @@ import { BrandMark } from '../components/BrandMark';
 import { MonthTrend } from '../components/MonthTrend';
 import { ProgressRing } from '../components/ProgressRing';
 
-const HERO_ART = require('../../assets/images/hero-cinema-light.png');
-// Aspect ratio (height / width) of hero-cinema-light.png.
-const HERO_RATIO = 388 / 472;
+// One illustration per theme, each blended into its own page colour (transparent edges).
+const HERO_ART_DARK = require('../../assets/images/hero-cinema-dark.png');
+const HERO_ART_LIGHT = require('../../assets/images/hero-cinema-light.png');
+// Aspect ratio (height / width) of both hero images.
+const HERO_RATIO = 422 / 420;
 
 // The trend line under the monthly numbers: the light shade of the app's blue.
 // The Home screen alone sets its figures in Fraunces (loaded in app/_layout); other screens use NUMBER_FONT.
 const HOME_NUMBER_FONT = 'Fraunces_500Medium';
-const TREND_COLOR = '#9DBBE6';
 
 /** Home: the title and the "Your 2026" hero, then the actions, the numbers and the monthly chart, on ivory. */
 export default function HomeScreen() {
@@ -62,6 +63,7 @@ export default function HomeScreen() {
       monthlySpent,
       spentTotal: monthlySpent.reduce((sum, amount) => sum + amount, 0),
       hasSpend: monthlySpent.some((amount) => amount > 0),
+      hasActivity: monthlyCounts.some((count) => count > 0),
     };
   }, [library, year]);
 
@@ -73,17 +75,19 @@ export default function HomeScreen() {
   const longest = derived.hasSpend ? spentText.length : 0;
   const tileSize = longest >= 11 ? 20 : longest >= 10 ? 22 : longest >= 9 ? 24 : longest >= 8 ? 26 : longest >= 7 ? 28 : 30;
 
-  const shadow = { shadowColor: mode === 'light' ? '#1A2A42' : '#000000' };
+  const shadow = { shadowColor: colors.shadow };
   const cardStyle = [styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSoft }, shadow];
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 36, width: '100%', maxWidth: 720, alignSelf: 'center' }}
+        // The content fills the screen (the monthly card takes the leftover height) so nothing needs scrolling;
+        // the bottom space keeps it clear of the floating tab bar.
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 80, width: '100%', maxWidth: 720, alignSelf: 'center' }}
       >
         {/* The title and the "Your 2026" hero card. */}
-        <View style={[styles.top, { paddingTop: insets.top + 14 }]}>
+        <View style={[styles.top, { paddingTop: insets.top + 10 }]}>
           <BrandMark height={32} />
           <View style={styles.hero}>
             <View style={styles.heroCopy}>
@@ -99,7 +103,11 @@ export default function HomeScreen() {
                 A private diary of the films that stayed with you.
               </Text>
             </View>
-            <Image source={HERO_ART} style={styles.art} resizeMode="contain" />
+            <Image
+              source={mode === 'dark' ? HERO_ART_DARK : HERO_ART_LIGHT}
+              style={styles.art}
+              resizeMode="contain"
+            />
           </View>
         </View>
 
@@ -112,7 +120,7 @@ export default function HomeScreen() {
               style={({ pressed }) => [
                 styles.actionButton,
                 styles.actionPrimary,
-                { backgroundColor: colors.primary, borderColor: colors.primary },
+                { backgroundColor: colors.primary, borderColor: colors.primary, shadowColor: colors.accent },
                 pressed && styles.pressed,
               ]}
             >
@@ -145,8 +153,7 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View style={styles.stack}>
-              {/* This year: three separate tiles, then Solo and Group as one proportional bar. */}
-              <SectionLabel text="This year" first />
+              {/* Three separate tiles, then Solo and Group as one proportional bar. */}
               <View style={styles.tileRow}>
                 <StatTile label="Films" value={derived.uniqueThisYear} size={tileSize} />
                 <StatTile label="Visits" value={derived.theatreVisits} size={tileSize} />
@@ -172,7 +179,7 @@ export default function HomeScreen() {
                   </View>
                 </View>
                 <View style={[styles.splitBar, { backgroundColor: colors.border }]}>
-                  <View style={{ flex: Math.max(derived.companion.alone.viewings, 0.0001), backgroundColor: TREND_COLOR }} />
+                  <View style={{ flex: Math.max(derived.companion.alone.viewings, 0.0001), backgroundColor: colors.iconSoft }} />
                   <View style={styles.splitGap} />
                   <View
                     style={{ flex: Math.max(derived.companion.company.viewings, 0.0001), backgroundColor: colors.accent }}
@@ -181,20 +188,19 @@ export default function HomeScreen() {
               </View>
 
               {/* Bucket list: a progress ring, the count in words, and a tap through to the watchlist. */}
-              <SectionLabel text="Progress" />
               <Pressable
                 onPress={() => router.navigate('/watchlist')}
                 accessibilityRole="button"
                 accessibilityLabel={
                   derived.bucketTotal > 0
-                    ? `Bucket list, ${derived.bucketWatched} of ${derived.bucketTotal} watched. Open the watchlist`
+                    ? `Bucket list, ${derived.bucketWatched} of ${derived.bucketTotal} watched. Open the bucket list`
                     : `Build your ${year} bucket list`
                 }
                 style={({ pressed }) => [cardStyle, styles.bucket, pressed && styles.pressed]}
               >
                 <ProgressRing
-                  size={56}
-                  stroke={7}
+                  size={48}
+                  stroke={6}
                   progress={progressPct / 100}
                   color={colors.primary}
                   trackColor={colors.border}
@@ -214,8 +220,7 @@ export default function HomeScreen() {
 
               {/* Monthly card, number first. Once amounts are entered, the money is the story: the amount leads and
                   the line follows what you spent each month. Before that, it follows the movies watched. */}
-              <SectionLabel text="Month by month" />
-              <View style={cardStyle}>
+              <View style={[cardStyle, derived.hasActivity && styles.monthCard]}>
                 <View style={styles.cardHead}>
                   <Ionicons name={derived.hasSpend ? 'cash' : 'bar-chart'} size={15} color={colors.accent} />
                   <Text style={[styles.monthTitle, { color: colors.text }]}>
@@ -255,10 +260,13 @@ export default function HomeScreen() {
 
                 <MonthTrend
                   values={derived.monthlyCounts}
-                  color={TREND_COLOR}
+                  color={colors.tint}
                   labels={Array.from({ length: 12 }, (_, index) => monthShort(index))}
                   selectedIndex={selectedMonth}
                   onSelect={setSelectedMonth}
+                  // With nothing logged the card stays small; once there is data it fills the rest of the screen.
+                  fill={derived.hasActivity}
+                  height={derived.hasActivity ? 52 : 20}
                 />
               </View>
             </View>
@@ -269,26 +277,16 @@ export default function HomeScreen() {
   );
 }
 
-/** A small heading over a group of cards. */
-function SectionLabel({ text, first }: { text: string; first?: boolean }) {
-  const { colors } = useTheme();
-  return (
-    <Text style={[styles.sectionLabel, first && styles.sectionLabelFirst, { color: colors.textMuted }]}>
-      {text.toUpperCase()}
-    </Text>
-  );
-}
-
 /** One headline number in its own white tile: a small capital label over a big figure. */
 function StatTile({ label, value, size, wide }: { label: string; value: number | string; size: number; wide?: boolean }) {
-  const { colors, mode } = useTheme();
+  const { colors } = useTheme();
   return (
     <View
       accessibilityLabel={`${label.toLowerCase()}: ${value}`}
       style={[
         styles.tile,
         wide && styles.tileWide,
-        { backgroundColor: colors.surface, borderColor: colors.borderSoft, shadowColor: mode === 'light' ? '#1A2A42' : '#000000' },
+        { backgroundColor: colors.surface, borderColor: colors.borderSoft, shadowColor: colors.shadow },
       ]}
     >
       <Text style={[styles.tileLabel, { color: colors.textMuted }]}>{label.toUpperCase()}</Text>
@@ -311,13 +309,13 @@ const styles = StyleSheet.create({
   top: {
     paddingHorizontal: 16,
     // A clear gap between the hero card and the buttons.
-    paddingBottom: 24,
+    paddingBottom: 10,
   },
   hero: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 10,
+    marginTop: 4,
   },
   heroCopy: {
     flex: 1,
@@ -338,23 +336,24 @@ const styles = StyleSheet.create({
   },
   // The illustration fades into the page, so it runs to the screen edge.
   art: {
-    width: 150,
-    height: Math.round(150 * HERO_RATIO),
+    width: 104,
+    height: Math.round(104 * HERO_RATIO),
     marginRight: -16,
     flexShrink: 0,
   },
   body: {
+    flex: 1,
     paddingHorizontal: 12,
-    paddingBottom: 12,
+    paddingBottom: 4,
   },
   actionRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 14,
+    marginBottom: 8,
   },
   actionButton: {
     flex: 1,
-    height: 48,
+    height: 44,
     borderRadius: RADIUS.pill,
     borderWidth: 1,
     flexDirection: 'row',
@@ -368,7 +367,6 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   actionPrimary: {
-    shadowColor: '#3B5F94',
     shadowOpacity: 0.32,
   },
   actionLabel: {
@@ -385,7 +383,10 @@ const styles = StyleSheet.create({
     paddingTop: SPACE.xxl,
     alignItems: 'center',
   },
+  // Spare height on tall screens is shared out between the cards instead of all going to the chart.
   stack: {
+    flex: 1,
+    justifyContent: 'space-between',
     gap: 12,
   },
   sectionLabel: {
@@ -409,8 +410,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 10,
+    paddingTop: 10,
+    paddingBottom: 4,
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
@@ -434,9 +435,16 @@ const styles = StyleSheet.create({
     fontVariant: ['lining-nums', 'tabular-nums'],
   },
   companionCard: {
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    gap: 12,
+    gap: 8,
+  },
+  // The chart card grows with the screen, but only up to a sensible height.
+  monthCard: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 150,
+    maxHeight: 250,
   },
   companionRow: {
     flexDirection: 'row',
@@ -450,8 +458,8 @@ const styles = StyleSheet.create({
   },
   splitBar: {
     flexDirection: 'row',
-    height: 10,
-    borderRadius: 5,
+    height: 8,
+    borderRadius: 4,
     overflow: 'hidden',
   },
   splitGap: {
@@ -469,7 +477,7 @@ const styles = StyleSheet.create({
     fontVariant: ['lining-nums', 'tabular-nums'],
   },
   card: {
-    padding: 18,
+    padding: 16,
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     shadowOpacity: 0.06,
@@ -486,6 +494,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
+    paddingVertical: 12,
   },
   bucketText: {
     flex: 1,
@@ -512,8 +521,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    marginTop: 8,
-    marginBottom: 6,
+    marginTop: 4,
+    marginBottom: 4,
   },
   monthName: {
     ...TYPE.eyebrow,

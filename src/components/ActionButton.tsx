@@ -59,6 +59,7 @@ export function ActionButton({
           backgroundColor: palette.bg,
           borderColor: palette.border,
           opacity: disabled ? 0.5 : 1,
+          shadowColor: colors.accent,
         },
         style,
       ]}
@@ -90,7 +91,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: RADIUS.pill,
     borderWidth: 1,
-    shadowColor: '#3B5F94',
     shadowOpacity: 0.28,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },

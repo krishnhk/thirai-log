@@ -1,12 +1,18 @@
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform, type TextStyle } from 'react-native';
+import { DATA_FILES, readJson, updateJson } from '../lib/storage';
 
 export type ThemeMode = 'light' | 'dark';
+
+/** The two themes you can choose in Settings > Appearance. */
+export type ThemeName = 'desk-dark' | 'desk-light';
 
 export interface ThemeColors {
   background: string;
   backgroundAlt: string;
   surface: string;
+  /** The bottom colour of a card's soft gradient (the same as `surface` in the flat themes). */
+  surfaceFade: string;
   surfaceAlt: string;
   border: string;
   borderSoft: string;
@@ -30,11 +36,23 @@ export interface ThemeColors {
   star: string;
   overlay: string;
   nav: string;
+  /** The edge of the floating tab bar, stronger than a card border so the bar never blends into the cards. */
+  navBorder: string;
   navActive: string;
   navText: string;
   navTextMuted: string;
   primary: string;
   primaryText: string;
+  /** Colour of shadows. */
+  shadow: string;
+  /** The quiet fill for charts: the bars that are not picked. */
+  tint: string;
+  /** Small icons that sit softly on a card (for example Solo and Group in the Diary). */
+  iconSoft: string;
+  /** Watchlist status colours. */
+  statusPlanned: string;
+  statusWatched: string;
+  statusSkipped: string;
 }
 
 export const SPACE = {
@@ -89,55 +107,156 @@ export const TYPE = {
   },
 } as const;
 
-const LIGHT: ThemeColors = {
-  background: '#FAF5EA',
-  backgroundAlt: '#EFE6D5',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F3ECDD',
-  border: '#E6DCC8',
-  borderSoft: 'rgba(26,42,66,0.08)',
-  text: '#1A2A42',
-  textMuted: '#66748B',
-  textDim: '#9AA5B6',
-  accent: '#3B5F94',
-  accentSoft: 'rgba(59,95,148,0.12)',
+/** Dark: soft charcoal (not near-black) with slate cards, one red accent for actions and the picked item, quiet borders. */
+const DESK_DARK: ThemeColors = {
+  background: '#1f2022',
+  backgroundAlt: '#2c2f37',
+  surface: '#25282f',
+  surfaceFade: '#25282f',
+  surfaceAlt: '#2c2f37',
+  border: '#363942',
+  borderSoft: '#2d3037',
+  text: '#f2f3f5',
+  textMuted: '#8d9097',
+  textDim: '#62656c',
+  accent: '#e5484d',
+  accentSoft: 'rgba(229,72,77,0.16)',
   onAccent: '#FFFFFF',
-  gold: '#7C98C0',
-  goldSoft: 'rgba(124,152,192,0.2)',
-  coral: '#3B5F94',
-  coralSoft: '#DEE6F3',
-  coralInk: '#2B4670',
-  sage: '#3B5F94',
-  sageSoft: '#E4EAF3',
-  sageInk: '#2B4670',
-  teal: '#3B5F94',
-  blue: '#3B5F94',
-  rose: '#BC4F68',
-  star: '#3B5F94',
-  overlay: 'rgba(18,30,50,0.58)',
-  nav: '#FFFFFF',
-  navActive: '#2B4670',
+  gold: '#e5484d',
+  goldSoft: 'rgba(229,72,77,0.16)',
+  coral: '#e5484d',
+  coralSoft: '#30333b',
+  coralInk: '#f2f3f5',
+  sage: '#43c07f',
+  sageSoft: 'rgba(67,192,127,0.13)',
+  sageInk: '#bfe9d2',
+  teal: '#43c07f',
+  blue: '#5fa2f7',
+  rose: '#f0605a',
+  star: '#f08a3c',
+  overlay: 'rgba(0,0,0,0.6)',
+  nav: '#32353d',
+  navBorder: '#4a4e59',
+  navActive: '#e5484d',
   navText: '#FFFFFF',
-  navTextMuted: '#5A6882',
-  primary: '#3B5F94',
+  navTextMuted: '#8d9097',
+  primary: '#e5484d',
   primaryText: '#FFFFFF',
+  shadow: '#000000',
+  tint: '#3a3d46',
+  iconSoft: '#8d9097',
+  statusPlanned: '#5fa2f7',
+  statusWatched: '#43c07f',
+  statusSkipped: '#f0605a',
 };
 
-interface ThemeContextValue {
+/** ThiraiDesk light: white and slate with the slightly deeper red. */
+const DESK_LIGHT: ThemeColors = {
+  background: '#f4f6fa',
+  backgroundAlt: '#e8ecf2',
+  surface: '#FFFFFF',
+  surfaceFade: '#FFFFFF',
+  surfaceAlt: '#f3f5f9',
+  border: '#dde3eb',
+  borderSoft: '#e8ecf2',
+  text: '#1e293b',
+  textMuted: '#5b6779',
+  textDim: '#8794a7',
+  accent: '#d93a40',
+  accentSoft: 'rgba(217,58,64,0.09)',
+  onAccent: '#FFFFFF',
+  gold: '#d93a40',
+  goldSoft: 'rgba(217,58,64,0.12)',
+  coral: '#d93a40',
+  coralSoft: '#e8ecf2',
+  coralInk: '#1e293b',
+  sage: '#15803d',
+  sageSoft: 'rgba(21,128,61,0.1)',
+  sageInk: '#166534',
+  teal: '#15803d',
+  blue: '#0369a1',
+  rose: '#dc2626',
+  star: '#b45309',
+  overlay: 'rgba(15,23,42,0.45)',
+  nav: '#e8ecf2',
+  navBorder: '#c6cedb',
+  navActive: '#d93a40',
+  navText: '#FFFFFF',
+  navTextMuted: '#5b6779',
+  primary: '#d93a40',
+  primaryText: '#FFFFFF',
+  shadow: '#0f172a',
+  tint: '#d6dce6',
+  iconSoft: '#8794a7',
+  statusPlanned: '#0369a1',
+  statusWatched: '#15803d',
+  statusSkipped: '#dc2626',
+};
+
+interface ThemeDefinition {
+  label: string;
+  hint: string;
   mode: ThemeMode;
   colors: ThemeColors;
 }
 
-// The app has a single light theme.
-const DEFAULT_CONTEXT: ThemeContextValue = {
-  mode: 'light',
-  colors: LIGHT,
+export const THEMES: Record<ThemeName, ThemeDefinition> = {
+  'desk-dark': { label: 'Dark', hint: 'Charcoal with a red accent', mode: 'dark', colors: DESK_DARK },
+  'desk-light': { label: 'Light', hint: 'White and slate with a red accent', mode: 'light', colors: DESK_LIGHT },
 };
 
-const ThemeContext = createContext<ThemeContextValue>(DEFAULT_CONTEXT);
+export const THEME_ORDER: ThemeName[] = ['desk-dark', 'desk-light'];
+const DEFAULT_THEME: ThemeName = 'desk-dark';
+
+interface ThemeContextValue {
+  mode: ThemeMode;
+  colors: ThemeColors;
+  name: ThemeName;
+  /** Switches the theme and remembers the choice. */
+  setTheme: (name: ThemeName) => void;
+}
+
+const ThemeContext = createContext<ThemeContextValue>({
+  mode: THEMES[DEFAULT_THEME].mode,
+  colors: THEMES[DEFAULT_THEME].colors,
+  name: DEFAULT_THEME,
+  setTheme: () => {},
+});
+
+function isThemeName(value: unknown): value is ThemeName {
+  // An older saved "classic" choice is no longer offered, so it falls back to the default (dark).
+  return value === 'desk-dark' || value === 'desk-light';
+}
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const value = useMemo<ThemeContextValue>(() => ({ mode: 'light', colors: LIGHT }), []);
+  const [name, setName] = useState<ThemeName>(DEFAULT_THEME);
+
+  // The saved choice is applied as soon as it has been read (the splash screen covers the short wait).
+  useEffect(() => {
+    let active = true;
+    readJson<{ theme?: unknown }>(DATA_FILES.settings, {})
+      .then((saved) => {
+        if (active && isThemeName(saved?.theme)) setName(saved.theme);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const setTheme = useCallback((next: ThemeName) => {
+    setName(next);
+    updateJson<Record<string, unknown>>(DATA_FILES.settings, {}, (current) => ({ ...current, theme: next })).catch(
+      () => {
+        // The theme still changes for this visit; it just will not be remembered.
+      }
+    );
+  }, []);
+
+  const value = useMemo<ThemeContextValue>(
+    () => ({ mode: THEMES[name].mode, colors: THEMES[name].colors, name, setTheme }),
+    [name, setTheme]
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

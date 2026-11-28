@@ -331,7 +331,7 @@ export async function importBackup(onDone?: () => void): Promise<void> {
           notify(
             'Import complete',
             `Added ${summary.viewings} viewings, ${summary.films} films, ${summary.theatres} theatres and ` +
-              `${summary.watchlistFilms} watchlist films.`
+              `${summary.watchlistFilms} bucket list films.`
           );
         } catch {
           notify('Import failed', 'Could not add the data from this file.');
@@ -370,7 +370,7 @@ async function wipeEverything(): Promise<void> {
 export function eraseAllData(onDone?: () => void): void {
   confirmAction(
     'Erase all data?',
-    'This deletes every viewing, film, theatre and watchlist on this device. It cannot be undone. ' +
+    'This deletes every viewing, film, theatre and bucket list on this device. It cannot be undone. ' +
       'Export a backup first if you might want anything back.',
     async () => {
       try {

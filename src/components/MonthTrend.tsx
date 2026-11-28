@@ -12,6 +12,8 @@ interface MonthTrendProps {
   color: string;
   /** Height of the bar area. */
   height?: number;
+  /** Fill the height the parent has left instead of using a fixed height (the bars then scale to it). */
+  fill?: boolean;
 }
 
 const BAR_WIDTH = 18;
@@ -21,16 +23,17 @@ const MIN_BAR = 4;
  * "Rounded bars": one soft pill-shaped bar per month, the picked month in the accent colour. Tap a bar
  * (anywhere in its column) or a month name to pick a month. No axis and no gridlines.
  */
-export function MonthTrend({ values, labels, selectedIndex, onSelect, color, height = 92 }: MonthTrendProps) {
+export function MonthTrend({ values, labels, selectedIndex, onSelect, color, height = 92, fill }: MonthTrendProps) {
   const { colors } = useTheme();
   const max = Math.max(1, ...values);
 
   return (
-    <View>
-      <View style={[styles.bars, { height }]}>
+    <View style={fill ? styles.fillWrap : undefined}>
+      <View style={[styles.bars, fill ? styles.barsFill : { height }]}>
         {values.map((value, index) => {
           const active = index === selectedIndex;
-          const barHeight = Math.max(MIN_BAR, (value / max) * (height - 6));
+          // A share of the bar area, so the bars follow the height the card is given.
+          const barHeight = `${Math.round((value / max) * 94)}%` as const;
           return (
             <Pressable
               key={`bar-${index}`}
@@ -44,6 +47,7 @@ export function MonthTrend({ values, labels, selectedIndex, onSelect, color, hei
                 style={{
                   width: BAR_WIDTH,
                   height: barHeight,
+                  minHeight: MIN_BAR,
                   borderRadius: BAR_WIDTH / 2,
                   backgroundColor: active ? colors.accent : color,
                   opacity: active ? 1 : 0.6,
@@ -82,6 +86,13 @@ export function MonthTrend({ values, labels, selectedIndex, onSelect, color, hei
 }
 
 const styles = StyleSheet.create({
+  fillWrap: {
+    flex: 1,
+  },
+  barsFill: {
+    flex: 1,
+    minHeight: 48,
+  },
   bars: {
     flexDirection: 'row',
     alignItems: 'flex-end',

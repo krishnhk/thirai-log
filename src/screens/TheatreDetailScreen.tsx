@@ -101,7 +101,7 @@ export default function TheatreDetailScreen({ theatreId }: TheatreDetailScreenPr
                       <Ionicons
                         name={entry.companion === 'alone' ? 'person' : 'people'}
                         size={19}
-                        color="#9DBBE6"
+                        color={colors.iconSoft}
                       />
                     </View>
                   ) : null}

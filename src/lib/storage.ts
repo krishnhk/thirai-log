@@ -16,6 +16,8 @@ export const DATA_FILES = {
   movies: 'movies',
   theatres: 'theatres',
   theatreImport: 'theatreImport',
+  // App preferences such as the chosen theme. Not part of backups, and not cleared by "Erase all data".
+  settings: 'settings',
 } as const;
 
 export type DataFile = (typeof DATA_FILES)[keyof typeof DATA_FILES];
@@ -28,6 +30,7 @@ const LEGACY_KEYS: Record<DataFile, string> = {
   movies: '@thirai-log:movies',
   theatres: '@thirai-log:theatres',
   theatreImport: '@thirai-log:theatreImport',
+  settings: '@thirai-log:settings',
 };
 
 const MIGRATION_MARKER = '.migrated';

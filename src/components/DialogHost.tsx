@@ -71,7 +71,7 @@ export function DialogHost() {
 
   return (
     <Modal transparent visible animationType="none" statusBarTranslucent onRequestClose={() => close()}>
-      <Animated.View style={[styles.scrim, { opacity: progress }]}>
+      <Animated.View style={[styles.scrim, { opacity: progress, backgroundColor: colors.overlay }]}>
         <Pressable
           style={styles.fill}
           onPress={() => {
@@ -88,6 +88,7 @@ export function DialogHost() {
             {
               backgroundColor: colors.surface,
               borderColor: colors.borderSoft,
+              shadowColor: colors.shadow,
               opacity: progress,
               transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }],
             },
@@ -140,7 +141,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: 'rgba(26,42,66,0.5)',
   },
   fill: {
     position: 'absolute',

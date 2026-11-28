@@ -6,12 +6,10 @@ import {
   StyleSheet,
   Text,
   View,
-  type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { RADIUS, NUMBER_FONT, SPACE, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
@@ -22,6 +20,7 @@ import { COMPANION_LABELS } from '../lib/stats';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Poster } from '../components/Poster';
+import { YearStrip } from '../components/YearStrip';
 
 interface MonthGroup {
   key: string;
@@ -48,6 +47,8 @@ const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 export default function DiaryScreen() {
   const { colors } = useTheme();
   const { library, loading } = useLibrary();
+  // The screen ends where the tab bar begins, so the button sits just 16px above the bar.
+  const fabBottom = 16;
 
   // Every year, newest first: each year holds its months, each month holds its viewings.
   const yearGroups = useMemo(() => {
@@ -77,11 +78,19 @@ export default function DiaryScreen() {
 
   const hasEntries = library.entries.length > 0;
 
-  // The year bar pinned under the summary. It is drawn over the list (not a native sticky header), so
-  // it always sits flush under the summary and rows never show in a gap above it. It appears once the
-  // first year heading has scrolled away and switches year as each next heading reaches the top.
-  const [pinnedYear, setPinnedYear] = useState<number | null>(null);
-  const yearTops = useRef<Record<number, number>>({});
+  // One year at a time, with a stepper to move between years. It opens on the latest year with viewings.
+  const currentYear = new Date().getFullYear();
+  const newestYear = yearGroups[0]?.year ?? currentYear;
+  const oldestYear = Math.min(yearGroups[yearGroups.length - 1]?.year ?? currentYear, newestYear);
+  const upperYear = Math.max(newestYear, currentYear);
+  const [pickedYear, setPickedYear] = useState<number | null>(null);
+  const openYear = Math.min(Math.max(pickedYear ?? newestYear, oldestYear), upperYear);
+  const openGroup = yearGroups.find((group) => group.year === openYear);
+  const changeYear = (year: number) => {
+    lastScrollY = 0;
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+    setPickedYear(year);
+  };
 
   // Coming back to the Diary (after editing a viewing, for example) can leave the list at the top, because
   // Android resets the scroll offset of a tab that was hidden. So the screen remembers where the list was
@@ -108,24 +117,26 @@ export default function DiaryScreen() {
   );
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = event.nativeEvent.contentOffset.y;
-    if (!restoring.current) lastScrollY = y;
-    let current: number | null = null;
-    if (yearGroups.length > 0 && y > (yearTops.current[yearGroups[0].year] ?? 0) + 1) {
-      yearGroups.forEach((group) => {
-        const top = yearTops.current[group.year];
-        if (top !== undefined && top <= y + 1) current = group.year;
-      });
-    }
-    setPinnedYear((previous) => (previous === current ? previous : current));
+    if (!restoring.current) lastScrollY = event.nativeEvent.contentOffset.y;
   };
-  const pinned = yearGroups.find((group) => group.year === pinnedYear);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <AppHeader title="Diary" subtitle="Every film you have watched, by year." />
 
       {/* The page header stays put; only the years below scroll. */}
+      {hasEntries ? (
+        <YearStrip
+          label="VISITS"
+          value={openGroup?.count ?? 0}
+          year={openYear}
+          canPrev={openYear > oldestYear}
+          canNext={openYear < upperYear}
+          onPrev={() => changeYear(openYear - 1)}
+          onNext={() => changeYear(openYear + 1)}
+          accessibilityLabel={`${openGroup?.count ?? 0} visits in ${openYear}`}
+        />
+      ) : null}
       <View style={styles.listWrap}>
       <ScrollView
         ref={scrollRef}
@@ -136,7 +147,8 @@ export default function DiaryScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={16}
         contentContainerStyle={{
-          paddingBottom: 36,
+          // Clears the Log button and the floating tab bar so the last card can scroll fully into view.
+          paddingBottom: fabBottom + 56 + 20,
           width: '100%',
           maxWidth: 720,
           alignSelf: 'center',
@@ -156,18 +168,16 @@ export default function DiaryScreen() {
             />
           </View>
         ) : (
-          yearGroups.flatMap((yearGroup) => [
-            <View
-              key={`year-${yearGroup.year}`}
-              style={[styles.stickyYear, { backgroundColor: colors.background }]}
-              onLayout={(event: LayoutChangeEvent) => {
-                yearTops.current[yearGroup.year] = event.nativeEvent.layout.y;
-              }}
-            >
-              <YearHeading year={yearGroup.year} count={yearGroup.count} />
-            </View>,
-            <View key={`months-${yearGroup.year}`} style={styles.monthsWrap}>
-                {yearGroup.months.map((monthGroup) => (
+          [
+            <View key="months" style={styles.monthsWrap}>
+              {!openGroup ? (
+                <View style={styles.noYear}>
+                  <Text style={[styles.noYearText, { color: colors.textMuted }]}>
+                    No films logged in {openYear}.
+                  </Text>
+                </View>
+              ) : null}
+                {(openGroup?.months ?? []).map((monthGroup) => (
                   <View key={monthGroup.key} style={styles.monthShadow}>
                   <View style={[styles.monthBlock, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <Text style={[styles.monthName, { color: colors.textMuted }]}>
@@ -249,7 +259,7 @@ export default function DiaryScreen() {
                               <Ionicons
                                 name={entry.companion === 'alone' ? 'person' : 'people'}
                                 size={19}
-                                color="#9DBBE6"
+                                color={colors.iconSoft}
                               />
                             </View>
                           ) : null}
@@ -261,47 +271,50 @@ export default function DiaryScreen() {
                   </View>
                 ))}
             </View>,
-          ])
+          ]
         )}
       </ScrollView>
 
-      {pinned ? (
-        <View style={[styles.pinnedYear, { backgroundColor: colors.background }]} pointerEvents="none">
-          <View style={styles.pinnedInner}>
-            <YearHeading year={pinned.year} count={pinned.count} />
-          </View>
-          {/* Rows dissolve softly under the pinned heading instead of being cut off at its line. */}
-          <LinearGradient
-            colors={[colors.background, `${colors.background}00`]}
-            style={styles.yearFade}
-            pointerEvents="none"
-          />
-        </View>
-      ) : null}
       </View>
-    </View>
-  );
-}
 
-/** The year, its visit count and the dark rule under them. Used in the list and in the pinned bar. */
-function YearHeading({ year, count }: { year: number; count: number }) {
-  const { colors } = useTheme();
-  return (
-    <>
-      <View style={styles.yearHeader}>
-        <Text style={[styles.yearTitle, { color: colors.text }]}>{year}</Text>
-        <Text style={[styles.yearCount, { color: colors.textMuted }]}>
-          {count} {count === 1 ? 'visit' : 'visits'}
-        </Text>
-      </View>
-      <View style={[styles.yearRule, { backgroundColor: colors.text }]} />
-    </>
+      <Pressable
+        onPress={() => router.navigate('/log')}
+        accessibilityRole="button"
+        accessibilityLabel="Log a viewing"
+        style={({ pressed }) => [
+          styles.fab,
+          {
+            bottom: fabBottom,
+            backgroundColor: colors.accent,
+            shadowColor: colors.accent,
+          },
+          pressed && { opacity: 0.85, transform: [{ scale: 0.95 }] },
+        ]}
+      >
+        <Ionicons name="add" size={28} color={colors.onAccent} />
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  // Inset 24 from the edge, so it sits inside the month cards' edge (they have 12 of margin) instead of hugging the screen.
+  fab: {
+    position: 'absolute',
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
+    zIndex: 10,
   },
   loading: {
     paddingTop: SPACE.xxl,
@@ -314,61 +327,23 @@ const styles = StyleSheet.create({
   listWrap: {
     flex: 1,
   },
-  pinnedYear: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 2,
-    zIndex: 5,
-  },
-  pinnedInner: {
-    width: '100%',
-    maxWidth: 720,
-    alignSelf: 'center',
-  },
-  stickyYear: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 2,
-  },
-  yearFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: '100%',
-    height: 18,
-  },
-  monthsWrap: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  yearHeader: {
+  headerLine: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 8,
   },
-  yearTitle: {
-    fontFamily: NUMBER_FONT,
-    fontSize: 26,
-    lineHeight: 34,
-    fontWeight: '400',
-    letterSpacing: 0,
-    fontVariant: ['tabular-nums'],
-  },
-  yearCount: {
-    fontSize: 12.5,
-    fontWeight: '700',
-  },
-  yearRule: {
-    height: 2,
-    borderRadius: 1,
-    marginHorizontal: 4,
+  countText: { fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  yearStepper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  yearArrow: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  yearNavText: { minWidth: 48, fontSize: 16, fontWeight: '800', textAlign: 'center', fontVariant: ['tabular-nums'] },
+  noYear: { paddingVertical: SPACE.xl, alignItems: 'center' },
+  noYearText: { fontSize: 14, fontWeight: '600' },
+  monthsWrap: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
   monthShadow: {
     marginTop: 10,

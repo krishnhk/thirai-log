@@ -1,6 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -10,12 +13,12 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INPUT_RESET, SPACE, RADIUS, NUMBER_FONT, TYPE, useTheme } from '../theme';
 import { useLibrary } from '../hooks/useLibrary';
 import { useMovieSearch } from '../hooks/useMovieSearch';
-import { searchableFilms } from '../lib/library';
+import { filmYear, searchableFilms } from '../lib/library';
 import {
   mutateAnnualLists,
   type AnnualList,
@@ -26,55 +29,85 @@ import type { Movie } from '../api/movies';
 import { yearOf } from '../lib/format';
 import { notify } from '../lib/ui';
 import { AppHeader } from '../components/AppHeader';
-import { EmptyState } from '../components/EmptyState';
+import { ProgressRing } from '../components/ProgressRing';
 import { Poster } from '../components/Poster';
+import { YearStrip } from '../components/YearStrip';
 import { ActionButton } from '../components/ActionButton';
-
-// Colours of the status label shown beside films that are not watched yet.
-const STATUS_COLORS: Record<EntryStatus, string> = {
-  planned: '#3B5F94',
-  watched: '#2F7D5B',
-  skipped: '#B4533F',
-};
-const STATUS_LABELS: Record<EntryStatus, string> = {
-  planned: 'Planned',
-  watched: 'Watched',
-  skipped: 'Skipped',
-};
 
 export default function WatchlistScreen() {
   const { colors } = useTheme();
+  // Colours of the status label shown beside films that are not watched yet (from the current theme).
+  const statusColors: Record<EntryStatus, string> = {
+    planned: colors.statusPlanned,
+    watched: colors.statusWatched,
+    skipped: colors.statusSkipped,
+  };
   const insets = useSafeAreaInsets();
   const { library, loading, refresh } = useLibrary();
 
   const currentYear = new Date().getFullYear();
-  // Filters the films shown in the list (separate from the search inside the add card).
-  const [listQuery, setListQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState('');
   // The year the film is added to. Starts as the current year; the user can type any other year.
   const [addYear, setAddYear] = useState(String(new Date().getFullYear()));
+  // True when the sheet was opened from a year that is already open: the year is then known, so it is not asked.
+  const [yearFixed, setYearFixed] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Every year that has films, newest first. The search box filters the films inside each year.
-  const sections = useMemo(() => {
-    const needle = listQuery.trim().toLowerCase();
-    return library.annual
-      .map((list) => ({
-        year: list.year,
-        total: list.movies.length,
-        watched: list.movies.filter((movie) => movie.status === 'watched').length,
-        // Films inside each year are listed alphabetically.
-        items: (needle
-          ? list.movies.filter((movie) => movie.title.toLowerCase().includes(needle))
-          : [...list.movies]
-        ).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true })),
-      }))
-      .filter((section) => section.items.length > 0)
-      .sort((a, b) => b.year - a.year);
-  }, [library.annual, listQuery]);
+  // The years that have a list, oldest first, shown as chips. One year is open at a time.
+  const years = useMemo(
+    () => library.annual.filter((list) => list.movies.length > 0).map((list) => list.year).sort((a, b) => a - b),
+    [library.annual]
+  );
+  const [pickedYear, setPickedYear] = useState<number | null>(null);
+  // The arrows step through every year from the oldest list (or this year) to ten years ahead.
+  const firstYear = Math.min(years[0] ?? currentYear, currentYear);
+  const lastYear = currentYear + 10;
+  // The year you stepped to; until then this year when it has a list, otherwise the newest one.
+  const defaultYear = years.includes(currentYear) ? currentYear : (years[years.length - 1] ?? currentYear);
+  const openYear = pickedYear !== null && pickedYear >= firstYear && pickedYear <= lastYear ? pickedYear : defaultYear;
+  const openList = useMemo(() => {
+    const list = library.annual.find((item) => item.year === openYear);
+    const items = [...(list?.movies ?? [])].sort((a, b) =>
+      a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true })
+    );
+    return {
+      items,
+      total: items.length,
+      watched: items.filter((movie) => movie.status === 'watched').length,
+    };
+  }, [library.annual, openYear]);
+  const openPct = openList.total > 0 ? openList.watched / openList.total : 0;
 
-  // With no films in any year there is nothing to search, so only the "Add film" card shows.
+  // The ring fills from empty to the watched share each time the page is opened, a year is picked, or the
+  // films finish loading.
+  const [ringValue] = useState(() => new Animated.Value(0));
+  const [ringProgress, setRingProgress] = useState(0);
+  const [openedAt, setOpenedAt] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      setOpenedAt((tick) => tick + 1);
+    }, [])
+  );
+  useEffect(() => {
+    const id = ringValue.addListener(({ value }) => setRingProgress(value));
+    return () => ringValue.removeListener(id);
+  }, [ringValue]);
+  useEffect(() => {
+    ringValue.stopAnimation();
+    ringValue.setValue(0);
+    const animation = Animated.timing(ringValue, {
+      toValue: openPct,
+      duration: 900,
+      delay: 120,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [openPct, openYear, openedAt, ringValue]);
+
+  // With no films in any year the screen is just a big call to action.
   const noWatchlist = library.annual.every((list) => list.movies.length === 0);
 
   // Tick the circle to mark a film watched; tick it again to put it back to planned.
@@ -102,6 +135,7 @@ export default function WatchlistScreen() {
   };
 
   const searchable = useMemo(() => searchableFilms(library), [library]);
+  const releaseYears = useMemo(() => new Map(searchable.map((film) => [film.id, filmYear(film)])), [searchable]);
   const { results: searchHits } = useMovieSearch(search, searchable);
   // A film can be on only one year's watchlist. Nothing is suggested until something is typed,
   // and films already on any year's list are left out (move or remove them to add them again).
@@ -120,6 +154,7 @@ export default function WatchlistScreen() {
 
   const closeAdd = () => {
     setAddOpen(false);
+    setYearFixed(false);
     setSearch('');
     setAddYear(String(currentYear));
   };
@@ -128,7 +163,7 @@ export default function WatchlistScreen() {
     if (busy) return;
     const targetYear = Number(addYear);
     if (!/^\d{4}$/.test(addYear.trim()) || targetYear < 1900 || targetYear > currentYear + 10) {
-      notify('Check the year', `Enter a year between 1900 and ${currentYear + 10} for the watchlist.`);
+      notify('Check the year', `Enter a year between 1900 and ${currentYear + 10} for the bucket list.`);
       return;
     }
     // A film cannot be on a watchlist for a year before it was released.
@@ -136,7 +171,7 @@ export default function WatchlistScreen() {
     if (Number.isFinite(releaseYear) && releaseYear > targetYear) {
       notify(
         'Not released yet',
-        `“${movie.title}” is a ${releaseYear} film, so it cannot be added to your ${targetYear} watchlist.`
+        `“${movie.title}” is a ${releaseYear} film, so it cannot be added to your ${targetYear} bucket list.`
       );
       return;
     }
@@ -184,140 +219,177 @@ export default function WatchlistScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <AppHeader title="Watchlist" subtitle="Films you plan to watch, by year." />
+      <AppHeader title="Bucket list" subtitle="Films you plan to watch, by year." />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{
-          paddingBottom: 36,
-          width: '100%',
-          maxWidth: 720,
-          alignSelf: 'center',
-        }}
-      >
-        {loading || noWatchlist ? null : (
-          <>
-            {/* Search on the left, add button on the right */}
-            <View style={styles.topRow}>
-              <View style={[styles.listSearch, { backgroundColor: colors.backgroundAlt, borderColor: colors.borderSoft }]}>
-                <Ionicons name="search" size={16} color={colors.textMuted} />
-                <TextInput
-                  value={listQuery}
-                  onChangeText={setListQuery}
-                  placeholder="Search your watchlist"
-                  placeholderTextColor={colors.textMuted}
-                  autoCorrect={false}
-                  accessibilityLabel="Search your watchlist"
-                  style={[styles.listSearchInput, INPUT_RESET, { color: colors.text }]}
-                />
-              </View>
-              <ActionButton
-                label="Add film"
-                icon="add"
-                compact
-                style={styles.addButton}
-                onPress={() => setAddOpen(true)}
-              />
-            </View>
-          </>
-        )}
-
-        {loading ? (
-          <View style={styles.loading}>
-            <ActivityIndicator color={colors.accent} />
-          </View>
-        ) : sections.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <EmptyState
-              icon="bookmark-outline"
-              title={listQuery.trim() ? 'No matching films' : `Nothing in ${currentYear} yet`}
-              message={
-                listQuery.trim()
-                  ? undefined
-                  : 'Add the films you want to watch this year and track them as you go.'
-              }
-              actionLabel={noWatchlist ? 'Add film' : undefined}
-              onAction={noWatchlist ? () => setAddOpen(true) : undefined}
+      {loading ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      ) : noWatchlist ? (
+        <View style={styles.bigEmpty}>
+          <View style={styles.markBox}>
+            <Image
+              source={require('../../assets/logo/mark-lid.png')}
+              style={[styles.markLayer, { tintColor: colors.accent, opacity: 0.35 }]}
+              resizeMode="contain"
+            />
+            <Image
+              source={require('../../assets/logo/mark-iris.png')}
+              style={[styles.markLayer, { tintColor: colors.accent }]}
+              resizeMode="contain"
             />
           </View>
-        ) : (
-          sections.map((section) => {
-            const pct = section.total > 0 ? Math.round((section.watched / section.total) * 100) : 0;
-            return (
-              <View key={section.year} style={styles.yearBlock}>
-                <View style={styles.yearHeader}>
-                  <Text style={[styles.yearTitle, { color: colors.text }]}>{section.year}</Text>
-                  <Text style={[styles.yearCount, { color: colors.textMuted }]}>
-                    {section.watched} of {section.total}
-                  </Text>
-                </View>
-                <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
-                  <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: colors.primary }]} />
-                </View>
+          <Text style={[styles.bigEmptyTitle, { color: colors.text }]}>Nothing on your {currentYear} list yet</Text>
+          <Text style={[styles.bigEmptyText, { color: colors.textMuted }]}>
+            Add the films you want to watch this year and tick them off as you go.
+          </Text>
+          <ActionButton
+            label="Add your first film"
+            icon="add"
+            onPress={() => {
+              setYearFixed(false);
+              setAddOpen(true);
+            }}
+          />
+        </View>
+      ) : (
+        <>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 96, width: '100%', maxWidth: 720, alignSelf: 'center' }}
+          >
+            {/* One line, no card: the year with its arrows on the left, the count and a small ring on the right. The
+                ring fills from empty to the watched share, and a year with no films shows an empty list you can start. */}
+            <YearStrip
+              label="WATCHED"
+              lead={
+                <ProgressRing
+                  size={28}
+                  stroke={4}
+                  progress={ringProgress}
+                  color={colors.primary}
+                  trackColor={colors.coralSoft}
+                />
+              }
+              value={
+                <>
+                  {openList.watched}
+                  <Text style={{ color: colors.textMuted }}>/{openList.total}</Text>
+                </>
+              }
+              accessibilityLabel={`${openList.watched} of ${openList.total} watched`}
+              year={openYear}
+              canPrev={openYear > firstYear}
+              canNext={openYear < lastYear}
+              onPrev={() => setPickedYear(openYear - 1)}
+              onNext={() => setPickedYear(openYear + 1)}
+            />
 
-                {section.items.map((movie) => {
-                  const done = movie.status === 'watched';
-                  const skipped = movie.status === 'skipped';
-                  return (
-                    <Pressable
-                      key={movie.id}
-                      style={({ pressed }) => [
-                        styles.row,
-                        { borderBottomColor: colors.border },
-                        pressed && { backgroundColor: colors.accentSoft },
-                      ]}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/watch-item/[itemId]',
-                          params: { itemId: movie.movieId, year: String(section.year) },
-                        })
-                      }
-                      // No button role here: the circle is a nested button.
-                      accessible
-                      accessibilityLabel={`Open ${movie.title}`}
-                    >
-                      <Pressable
-                        hitSlop={10}
-                        onPress={() => toggleWatched(section.year, movie)}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: done }}
-                        accessibilityLabel={done ? `Mark ${movie.title} as planned` : `Mark ${movie.title} as watched`}
-                        style={[
-                          styles.check,
-                          done
-                            ? { backgroundColor: STATUS_COLORS.watched, borderColor: STATUS_COLORS.watched }
-                            : skipped
-                              ? { borderColor: STATUS_COLORS.skipped }
-                              : { borderColor: colors.textDim },
-                        ]}
-                      >
-                        {done ? <Ionicons name="checkmark" size={13} color="#FFFFFF" /> : null}
-                        {skipped ? <Ionicons name="close" size={14} color={STATUS_COLORS.skipped} /> : null}
-                      </Pressable>
+            {/* The films of the open year. */}
+            {openList.total === 0 ? (
+              <View style={[styles.listCard, styles.yearEmpty, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
+                <Text style={[styles.heroTitle, { color: colors.text }]}>Nothing on your {openYear} list yet</Text>
+                <Text style={[styles.heroSub, { color: colors.textMuted }]}>Tap Add film to start it.</Text>
+              </View>
+            ) : (
+              <View style={styles.checklist}>
+                {[
+                  {
+                    key: 'next',
+                    label: 'UP NEXT',
+                    items: openList.items.filter((m) => m.status !== 'watched' && m.status !== 'skipped'),
+                  },
+                  { key: 'done', label: 'DONE', items: openList.items.filter((m) => m.status === 'watched') },
+                  { key: 'skipped', label: 'SKIPPED', items: openList.items.filter((m) => m.status === 'skipped') },
+                ].map((section) =>
+                  section.items.length === 0 ? null : (
+                    <View key={section.key}>
                       <Text
                         style={[
-                          styles.movieTitle,
-                          { color: done ? colors.textMuted : colors.text },
-                          done && styles.movieTitleDone,
+                          styles.sectionLabel,
+                          { color: section.key === 'next' ? colors.accent : colors.textMuted },
                         ]}
-                        numberOfLines={2}
                       >
-                        {movie.title}
+                        {section.label}
                       </Text>
-                      {done ? null : (
-                        <Text style={[styles.statusLabel, { color: STATUS_COLORS[movie.status] }]}>
-                          {STATUS_LABELS[movie.status]}
-                        </Text>
-                      )}
-                    </Pressable>
-                  );
-                })}
+                      {section.items.map((movie) => {
+                        const done = movie.status === 'watched';
+                        const skipped = movie.status === 'skipped';
+                        const released = releaseYears.get(movie.movieId);
+                        return (
+                          <View key={movie.id} style={[styles.checkRow, { borderBottomColor: colors.border }]}>
+                            <Pressable
+                              hitSlop={10}
+                              onPress={() => toggleWatched(openYear, movie)}
+                              accessibilityRole="checkbox"
+                              accessibilityState={{ checked: done }}
+                              accessibilityLabel={
+                                done ? `Mark ${movie.title} as planned` : `Mark ${movie.title} as watched`
+                              }
+                              style={[
+                                styles.box,
+                                done
+                                  ? { backgroundColor: statusColors.watched, borderColor: statusColors.watched }
+                                  : skipped
+                                    ? { borderColor: statusColors.skipped }
+                                    : { borderColor: colors.textDim },
+                              ]}
+                            >
+                              {done ? <Ionicons name="checkmark" size={15} color={colors.onAccent} /> : null}
+                              {skipped ? <Ionicons name="close" size={16} color={statusColors.skipped} /> : null}
+                            </Pressable>
+                            <Pressable
+                              style={({ pressed }) => [styles.checkBody, pressed && { opacity: 0.6 }]}
+                              onPress={() =>
+                                router.push({
+                                  pathname: '/watch-item/[itemId]',
+                                  params: { itemId: movie.movieId, year: String(openYear) },
+                                })
+                              }
+                              accessibilityRole="button"
+                              accessibilityLabel={`Open ${movie.title}`}
+                            >
+                              <Text
+                                style={[
+                                  styles.movieTitle,
+                                  { color: done ? colors.textMuted : colors.text },
+                                  done && styles.movieTitleDone,
+                                ]}
+                                numberOfLines={2}
+                              >
+                                {movie.title}
+                              </Text>
+                              {released && String(released) !== String(openYear) ? (
+                                <Text style={[styles.filmMeta, { color: colors.textMuted }]}>Released {released}</Text>
+                              ) : null}
+                            </Pressable>
+                            <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )
+                )}
               </View>
-            );
-          })
-        )}
-      </ScrollView>
+            )}
+          </ScrollView>
+
+          {/* Add film floats at the bottom-right, above the tab bar. */}
+          <View style={styles.floatAdd} pointerEvents="box-none">
+            <ActionButton
+              label="Add film"
+              icon="add"
+              compact
+              onPress={() => {
+                // Added to the year that is open, so the sheet does not ask for a year.
+                setAddYear(String(openYear));
+                setYearFixed(true);
+                setAddOpen(true);
+              }}
+            />
+          </View>
+        </>
+      )}
 
       <Modal visible={addOpen} animationType="fade" transparent onRequestClose={closeAdd}>
         <View
@@ -337,7 +409,9 @@ export default function WatchlistScreen() {
           >
             <View style={styles.sheetHeader}>
               <View style={styles.flex}>
-                <Text style={[styles.sheetTitle, { color: colors.text }]}>Add to watchlist</Text>
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>
+                  {yearFixed ? `Add to ${shownYear} bucket list` : 'Add to bucket list'}
+                </Text>
               </View>
               <Pressable
                 onPress={closeAdd}
@@ -350,37 +424,39 @@ export default function WatchlistScreen() {
               </Pressable>
             </View>
 
-            {/* Year stepper: minus and plus instead of typing four digits. */}
-            <View style={styles.yearField}>
-              <Text style={[styles.yearFieldLabel, { color: colors.textMuted }]}>Watchlist year</Text>
-              <View
-                style={[styles.stepper, { backgroundColor: colors.surfaceAlt }]}
-                accessibilityLabel="Watchlist year"
-                accessibilityValue={{ text: String(shownYear) }}
-              >
-                <Pressable
-                  onPress={() => stepYear(-1)}
-                  disabled={shownYear <= minYear}
-                  accessibilityRole="button"
-                  accessibilityLabel="Earlier year"
-                  hitSlop={6}
-                  style={({ pressed }) => [styles.stepButton, (pressed || shownYear <= minYear) && { opacity: 0.4 }]}
+            {/* Year stepper (minus and plus), only when the year still has to be chosen: from "+ Year" or the first film. */}
+            {yearFixed ? null : (
+              <View style={styles.yearField}>
+                <Text style={[styles.yearFieldLabel, { color: colors.textMuted }]}>Bucket list year</Text>
+                <View
+                  style={[styles.stepper, { backgroundColor: colors.surfaceAlt }]}
+                  accessibilityLabel="Bucket list year"
+                  accessibilityValue={{ text: String(shownYear) }}
                 >
-                  <Ionicons name="remove" size={18} color={colors.accent} />
-                </Pressable>
-                <Text style={[styles.stepYear, { color: colors.text }]}>{shownYear}</Text>
-                <Pressable
-                  onPress={() => stepYear(1)}
-                  disabled={shownYear >= maxYear}
-                  accessibilityRole="button"
-                  accessibilityLabel="Later year"
-                  hitSlop={6}
-                  style={({ pressed }) => [styles.stepButton, (pressed || shownYear >= maxYear) && { opacity: 0.4 }]}
-                >
-                  <Ionicons name="add" size={18} color={colors.accent} />
-                </Pressable>
+                  <Pressable
+                    onPress={() => stepYear(-1)}
+                    disabled={shownYear <= minYear}
+                    accessibilityRole="button"
+                    accessibilityLabel="Earlier year"
+                    hitSlop={6}
+                    style={({ pressed }) => [styles.stepButton, (pressed || shownYear <= minYear) && { opacity: 0.4 }]}
+                  >
+                    <Ionicons name="remove" size={18} color={colors.accent} />
+                  </Pressable>
+                  <Text style={[styles.stepYear, { color: colors.text }]}>{shownYear}</Text>
+                  <Pressable
+                    onPress={() => stepYear(1)}
+                    disabled={shownYear >= maxYear}
+                    accessibilityRole="button"
+                    accessibilityLabel="Later year"
+                    hitSlop={6}
+                    style={({ pressed }) => [styles.stepButton, (pressed || shownYear >= maxYear) && { opacity: 0.4 }]}
+                  >
+                    <Ionicons name="add" size={18} color={colors.accent} />
+                  </Pressable>
+                </View>
               </View>
-            </View>
+            )}
 
             <View style={[styles.searchRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Ionicons name="search" size={17} color={colors.textDim} />
@@ -434,7 +510,7 @@ export default function WatchlistScreen() {
               {/* Only when the exact title is typed; a partial match that is already listed stays quiet. */}
               {searching && searchResults.length === 0 && typedExactlyOnList ? (
                 <Text style={[styles.emptyResults, { color: colors.textMuted }]}>
-                  Already on your watchlist. Move or remove it there to add it again.
+                  Already on your bucket list. Move or remove it there to add it again.
                 </Text>
               ) : null}
 
@@ -453,6 +529,142 @@ export default function WatchlistScreen() {
 }
 
 const styles = StyleSheet.create({
+  bigEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    paddingTop: 56,
+    gap: 6,
+  },
+  markBox: {
+    width: 150,
+    height: 120,
+    marginBottom: 14,
+  },
+  markLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+  },
+  bigEmptyTitle: {
+    ...TYPE.heading,
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  bigEmptyText: {
+    ...TYPE.small,
+    textAlign: 'center',
+    maxWidth: 260,
+    marginBottom: 14,
+  },
+  heroTitle: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '800',
+  },
+  heroSub: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  headerLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 12,
+  },
+  yearGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  countGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  countText: {
+    fontSize: 14,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  yearArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearNavText: {
+    minWidth: 48,
+    textAlign: 'center',
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  listCard: {
+    marginHorizontal: 12,
+    borderRadius: RADIUS.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  checklist: {
+    paddingHorizontal: 16,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  box: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  yearEmpty: {
+    padding: 18,
+    alignItems: 'center',
+  },
+  filmRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  filmMeta: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  floatAdd: {
+    position: 'absolute',
+    right: 20,
+    bottom: 16,
+  },
   root: {
     flex: 1,
   },
@@ -508,17 +720,6 @@ const styles = StyleSheet.create({
   yearCount: {
     fontSize: 12.5,
     fontWeight: '700',
-  },
-  progressTrack: {
-    height: 5,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
   },
   row: {
     flexDirection: 'row',

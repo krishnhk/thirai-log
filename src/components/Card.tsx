@@ -16,13 +16,13 @@ export function Card({ children, style, padded = true, raised }: CardProps) {
   const { colors, mode } = useTheme();
   return (
     <LinearGradient
-      colors={raised ? [colors.surfaceAlt, colors.surfaceAlt] : [colors.surface, '#FBF8F0']}
+      colors={raised ? [colors.surfaceAlt, colors.surfaceAlt] : [colors.surface, colors.surfaceFade]}
       style={[
         styles.card,
         padded && styles.padded,
         {
           borderColor: colors.borderSoft,
-          shadowColor: mode === 'light' ? '#1A2A42' : '#000000',
+          shadowColor: colors.shadow,
           shadowOpacity: mode === 'light' ? 0.09 : 0.2,
         },
         style,

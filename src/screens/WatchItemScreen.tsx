@@ -108,7 +108,7 @@ export default function WatchItemScreen({ itemId, year }: WatchItemScreenProps) 
 
   const removeMovie = () => {
     if (!item) return;
-    confirmAction('Remove film', `Remove “${item.title}” from your ${year} watchlist?`, async () => {
+    confirmAction('Remove film', `Remove “${item.title}” from your ${year} bucket list?`, async () => {
       await mutateAnnualLists((lists) =>
         lists.map((list) =>
           list.year === year
@@ -127,7 +127,7 @@ export default function WatchItemScreen({ itemId, year }: WatchItemScreenProps) 
   return (
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <LinearGradient
-        colors={['#DDE6F4', 'rgba(250,245,234,0)']}
+        colors={[colors.accentSoft, `${colors.background}00`]}
         style={styles.glow}
         pointerEvents="none"
       />
@@ -158,7 +158,7 @@ export default function WatchItemScreen({ itemId, year }: WatchItemScreenProps) 
           </View>
 
           <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
-          <Text style={[styles.year, { color: colors.textMuted }]}>{item.year || year} watchlist</Text>
+          <Text style={[styles.year, { color: colors.textMuted }]}>{item.year || year} bucket list</Text>
 
           {/* Status: one floating bar, tap a segment to set it. */}
           <View style={[styles.statusBar, { backgroundColor: colors.surface, shadowColor: colors.primary }]}>

@@ -3,12 +3,13 @@ import { Animated, Easing, StyleSheet, View } from 'react-native';
 
 const LID = require('../../assets/logo/mark-lid.png');
 const IRIS = require('../../assets/logo/mark-iris.png');
+// A halftone dot pattern, red dots growing toward the bottom (red on transparent), behind the mark.
+const HALFTONE = require('../../assets/images/splash-halftone.png');
 
-// Sand splash, a little darker than the ivory app background. The mark and title use exactly the
-// colours of the app icon and header logo: navy lid and "thirai", denim iris and "log".
-const BACKGROUND = '#E4D7BD';
-const NAVY = '#1A2A42';
-const DENIM = '#3B5F94';
+// Near-black splash with the mark in cinema red, the same colours as the app icon and the ThiraiDesk
+// theme: red mark and the whole title in cinema red.
+const BACKGROUND = '#1f2022';
+const DENIM = '#e5484d';
 const MARK_WIDTH = 140;
 const MARK_HEIGHT = Math.round((MARK_WIDTH * 121) / 152);
 const LETTERS = 'thirailog'.split('');
@@ -77,12 +78,19 @@ export function AnimatedSplash({ onDone }: AnimatedSplashProps) {
       style={[StyleSheet.absoluteFill, styles.root, { backgroundColor: BACKGROUND, opacity: overall }]}
       pointerEvents="none"
     >
+      <Animated.Image
+        source={HALFTONE}
+        resizeMode="cover"
+        // An explicit width and height: without them the web build keeps the picture's own size and only its
+        // empty top corner shows.
+        style={[StyleSheet.absoluteFill, { width: '100%', height: '100%', opacity: lid }]}
+      />
       <View style={styles.center}>
         <View style={{ width: MARK_WIDTH, height: MARK_HEIGHT }}>
           <Animated.Image
             source={LID}
             resizeMode="contain"
-            tintColor={NAVY}
+            tintColor={DENIM}
             style={[
               styles.layer,
               {
@@ -125,7 +133,7 @@ export function AnimatedSplash({ onDone }: AnimatedSplashProps) {
               style={[
                 styles.letter,
                 {
-                  color: index < 6 ? NAVY : DENIM,
+                  color: DENIM,
                   opacity: letters[index],
                   transform: [
                     {
